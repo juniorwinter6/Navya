@@ -318,11 +318,23 @@ async function startBot() {
             if (!text) return; // Now it is safe to return if no text exists
 
             // ==========================================================
+            // ==========================================================
             // 3. VARIABLE PARSING & LOOP BYPASS
             // ==========================================================
             const sender = m.key.participant || m.key.remoteJid || "";
-            const cleanSenderNumber = sender.split("@")[0].split(":")[0];
-            const isOwner = global.OWNERS.includes(cleanSenderNumber);
+            // Clean out @s.whatsapp.net, device ports (:1, :2), and non-digits
+            const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
+
+            // Import config safely or fallback to global/empty array
+            const configOwners = (typeof config !== "undefined" && config.OWNERS)
+                ? config.OWNERS
+                : (global.OWNERS || []);
+
+            // Clean the configured owner array to pure digits for comparison
+            const cleanedOwners = configOwners.map(num => String(num).replace(/[^0-9]/g, ""));
+
+            // Check if sender is in the owner list
+            const isOwner = cleanedOwners.includes(cleanSenderNumber);
             const isCommand = text.startsWith(global.PREFIX || "!");
 
             // If the message is from the bot number itself

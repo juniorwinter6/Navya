@@ -17,6 +17,10 @@ module.exports = {
         "2348115336615"
     ],
 
+    // Additional aliases used by various command modules
+    OWNER: ["2348058068041", "2348115336615"],
+    MODS: ["2349130961572"],
+
     // Primary owner details for the .owner command display
     OWNER_NAME: "Rise",
     OWNER_NUMBER: "2348058068041",
