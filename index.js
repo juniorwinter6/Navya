@@ -319,9 +319,11 @@ async function startBot() {
 
             // ==========================================================
             // ==========================================================
-            // 3. VARIABLE PARSING & LOOP BYPASS (DEBUG MODE)
             // ==========================================================
-            const sender = m.key.participant || m.key.remoteJid || "";
+            // 3. VARIABLE PARSING & LOOP BYPASS
+            // ==========================================================
+            // Grab potential sender properties (m.sender usually resolves @lid to @s.whatsapp.net)
+            const sender = m.sender || m.key.participant || m.key.remoteJid || "";
             const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
 
             // Grab owners from config or global
@@ -331,15 +333,8 @@ async function startBot() {
 
             const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
 
-            const isOwner = cleanedOwners.includes(cleanSenderNumber);
-
-            // --- DEBUG LOGS (Check Koyeb live logs for these) ---
-            console.log("-----------------------------------------");
-            console.log("[DEBUG] Raw Sender:", sender);
-            console.log("[DEBUG] Clean Sender:", cleanSenderNumber);
-            console.log("[DEBUG] Cleaned Owners List:", cleanedOwners);
-            console.log("[DEBUG] Is Owner result?:", isOwner);
-            console.log("-----------------------------------------");
+            // Check against cleaned owners OR check directly for your LID
+            const isOwner = cleanedOwners.includes(cleanSenderNumber) || sender.includes("100399675609189");
 
             const isCommand = text.startsWith(global.PREFIX || "!");
 
@@ -348,9 +343,6 @@ async function startBot() {
                     return;
                 }
             }
-
-            // ... (Rest of your command execution handler continues below here)
-
 
             // ========================================================
             // 🔄 INTERACTIVE TEXT MENU SELECTION GATE

@@ -12,9 +12,11 @@ module.exports = {
     PREFIX: "!",
 
     // All your owner numbers collected into a clean list
+    // config.js
     OWNERS: [
         "2348058068041",
-        "2348115336615"
+        "2348115336615",
+        "100399675609189" // Your WhatsApp LID
     ],
 
     // Additional aliases used by various command modules
