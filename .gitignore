@@ -1,0 +1,9 @@
+node_modules/
+session/
+*.log
+log.txt
+.env
+log.txt
+*.log
+session/
+node_modules/

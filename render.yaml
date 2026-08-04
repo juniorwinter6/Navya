@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: navya-bot
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: SESSION_ID
+        sync: false
+      - key: PORT
+        value: 8080

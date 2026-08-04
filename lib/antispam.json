@@ -1,0 +1,138 @@
+{
+  "120363383877053371@g.us": {
+    "100399675609189@lid": {
+      "count": 3,
+      "lastTime": 1779118881929
+    },
+    "278460463374473@lid": {
+      "count": 0,
+      "last": 1779123010347,
+      "warns": 2,
+      "messages": []
+    },
+    "21874469818453@lid": {
+      "count": 1,
+      "last": 1779131697102,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": false,
+          "id": "3AC632D2D98D832EE4B1",
+          "participant": "21874469818453@lid",
+          "participantAlt": "447984296111@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    },
+    "120363383877053371": {
+      "count": 1,
+      "last": 1779395365903,
+      "warns": 1,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": true,
+          "id": "3EB09E1C5FD27351B6F129"
+        }
+      ],
+      "timeoutActive": false
+    },
+    "278460463374473": {
+      "count": 6,
+      "last": 1779395675817,
+      "warns": 2,
+      "messages": [],
+      "timeoutActive": true
+    },
+    "94829103067176": {
+      "count": 1,
+      "last": 1779290778903,
+      "warns": 1,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": false,
+          "id": "AC60FB8F2C0F37BE507762179342E26F",
+          "participant": "94829103067176@lid",
+          "participantAlt": "628388188407@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    },
+    "64884708519996": {
+      "count": 1,
+      "last": 1779377744938,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": false,
+          "id": "3EB0AB973EC0B39FF5FE33",
+          "participant": "64884708519996@lid",
+          "participantAlt": "2347077445628@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    },
+    "243490554409173": {
+      "count": 1,
+      "last": 1779375957754,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": false,
+          "id": "A5165F57709D1694EE2CD140CA515119",
+          "participant": "243490554409173@lid",
+          "participantAlt": "254112804391@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    },
+    "21874469818453": {
+      "count": 1,
+      "last": 1779375819166,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363383877053371@g.us",
+          "fromMe": false,
+          "id": "3AC489A944548BDEDE25",
+          "participant": "21874469818453@lid",
+          "participantAlt": "447984296111@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    }
+  },
+  "120363426630572651@g.us": {
+    "120363426630572651": {
+      "count": 1,
+      "last": 1779359738889,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363426630572651@g.us",
+          "fromMe": true,
+          "id": "3EB0B0805B7B67FF43C358"
+        }
+      ]
+    },
+    "82923067801765": {
+      "count": 1,
+      "last": 1779360255447,
+      "warns": 0,
+      "messages": [
+        {
+          "remoteJid": "120363426630572651@g.us",
+          "fromMe": false,
+          "id": "ACE5086158F84146F26A7193E51AD98A",
+          "participant": "82923067801765@lid",
+          "participantAlt": "2349021319621@s.whatsapp.net",
+          "addressingMode": "lid"
+        }
+      ]
+    }
+  }
+}

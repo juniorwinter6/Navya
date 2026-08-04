@@ -1,0 +1,21 @@
+{
+  "120363383877053371@g.us": {
+    "postedBy": "@100399675609189",
+    "timestamp": 1779377662005,
+    "text": "",
+    "isMedia": true,
+    "mediaData": {
+      "url": "https://mmg.whatsapp.net/v/t62.7118-24/704902881_1322413566439195_244177898337212610_n.enc?ccb=11-4&oh=01_Q5Aa4gFDukGIM24mx6Jjp4Ax5iH0eKXXyZLXk4Hu4jFvUSDkDw&oe=6A369E79&_nc_sid=5e03e0&mms3=true",
+      "mimetype": "image/jpeg",
+      "fileSha256": "yiq5Jjs7HgyxnlwU3GUdSVDGDYgRlUhoKL0KnwkKG2E=",
+      "fileLength": {
+        "low": 80174,
+        "high": 0,
+        "unsigned": true
+      },
+      "mediaKey": "fKcUzI6MMit80+WrVhR5eqFK9rqQuNZVcsbV/cByVl0=",
+      "height": 1020,
+      "width": 768
+    }
+  }
+}
