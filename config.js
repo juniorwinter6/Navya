@@ -13,13 +13,13 @@ module.exports = {
 
     // All your owner numbers collected into a clean list
     OWNERS: [
-        "2348115336615",
-        "2348058068041"
+        "2348058068041",
+        "2348115336615"
     ],
 
     // Primary owner details for the .owner command display
-    OWNER_NAME: "Junior",
-    OWNER_NUMBER: "2348115336615",
+    OWNER_NAME: "Rise",
+    OWNER_NUMBER: "2348058068041",
     INSTAGRAM: "https://www.instagram.com/winterrise",
     GITHUB: "https://github.com/juniorwinter6"
 };
