@@ -319,29 +319,33 @@ async function startBot() {
 
             // ==========================================================
             // ==========================================================
-            // 3. VARIABLE PARSING & LOOP BYPASS
+            // 3. VARIABLE PARSING & LOOP BYPASS (DEBUG MODE)
             // ==========================================================
             const sender = m.key.participant || m.key.remoteJid || "";
-            // Clean out @s.whatsapp.net, device ports (:1, :2), and non-digits
             const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
 
-            // Import config safely or fallback to global/empty array
-            const configOwners = (typeof config !== "undefined" && config.OWNERS)
+            // Grab owners from config or global
+            const rawOwners = (typeof config !== "undefined" && config.OWNERS)
                 ? config.OWNERS
                 : (global.OWNERS || []);
 
-            // Clean the configured owner array to pure digits for comparison
-            const cleanedOwners = configOwners.map(num => String(num).replace(/[^0-9]/g, ""));
+            const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
 
-            // Check if sender is in the owner list
             const isOwner = cleanedOwners.includes(cleanSenderNumber);
+
+            // --- DEBUG LOGS (Check Koyeb live logs for these) ---
+            console.log("-----------------------------------------");
+            console.log("[DEBUG] Raw Sender:", sender);
+            console.log("[DEBUG] Clean Sender:", cleanSenderNumber);
+            console.log("[DEBUG] Cleaned Owners List:", cleanedOwners);
+            console.log("[DEBUG] Is Owner result?:", isOwner);
+            console.log("-----------------------------------------");
+
             const isCommand = text.startsWith(global.PREFIX || "!");
 
-            // If the message is from the bot number itself
             if (m.key.fromMe) {
-                // Allow the message only if it explicitly begins with your command prefix
                 if (!text.startsWith(global.PREFIX || "!")) {
-                    return; // Blocks regular bot replies from triggering commands
+                    return;
                 }
             }
 
