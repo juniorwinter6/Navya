@@ -6,6 +6,7 @@ const express = require("express");
 const pino = require("pino");
 const QRCode = require("qrcode-terminal");
 const { GoogleGenAI } = require("@google/genai");
+const pairRouter = require('./pair');
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -74,6 +75,7 @@ function getSender(m) {
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+app.use('/pair', pairRouter);
 app.get("/", (req, res) => {
     res.status(200).send("NAVYA BOT is running smoothly!");
 });
