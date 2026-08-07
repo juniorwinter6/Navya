@@ -6,31 +6,39 @@ const {
     default: makeWASocket,
     useMultiFileAuthState,
     delay,
-    makeCacheableSignalKeyStore
+    makeCacheableSignalKeyStore,
+    Browsers
 } = require('@whiskeysockets/baileys');
 
 const router = express.Router();
 
+// Helper function to safely delete temporary session folders
 function removeFolder(dir) {
     if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true });
+        try {
+            fs.rmSync(dir, { recursive: true, force: true });
+        } catch (e) {
+            console.error("Error removing directory:", e);
+        }
     }
 }
 
+// Serve pair.html interface
 router.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'pair.html'));
 });
 
+// Pairing code API endpoint
 router.get('/code', async (req, res) => {
     let phone = req.query.number;
     if (!phone) {
         return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    // Sanitize phone number to pure digits
+    // Clean phone number to pure digits
     phone = phone.replace(/[^0-9]/g, '');
 
-    // Temp auth directory for this session
+    // Temporary unique session folder for auth state
     const sessionDir = path.join(__dirname, `./temp_session_${Date.now()}`);
 
     try {
@@ -43,14 +51,17 @@ router.get('/code', async (req, res) => {
             },
             printQRInTerminal: false,
             logger: pino({ level: 'fatal' }),
-            browser: ["Ubuntu", "Chrome", "20.0.04"]
+            // Official browser signature to prevent "Something went wrong" errors
+            browser: ["Windows", "Chrome", "114.0.5735.198"],
+            syncFullHistory: false
         });
 
         if (!Sock.authState.creds.registered) {
-            await delay(1500);
+            // Delay to allow WebSocket handshake to complete on cloud servers
+            await delay(3000);
+
             const code = await Sock.requestPairingCode(phone);
 
-            // Send back code to frontend
             if (!res.headersSent) {
                 res.json({ code: code });
             }
@@ -71,7 +82,7 @@ router.get('/code', async (req, res) => {
                     const base64Session = Buffer.from(credsData).toString('base64');
                     const sessionId = "NAVYA~" + base64Session;
 
-                    // Send session string directly to the user's WhatsApp chat
+                    // Send the session ID directly to the user's WhatsApp DM
                     const userJid = Sock.user.id.split(':')[0] + '@s.whatsapp.net';
                     await Sock.sendMessage(userJid, {
                         text: `🎉 *NAVYA BOT SESSION CONNECTED*\n\nHere is your SESSION_ID. Copy and keep it safe:\n\n\`\`\`${sessionId}\`\`\`\n\n*Note:* Do not share this key with anyone!`
@@ -83,8 +94,9 @@ router.get('/code', async (req, res) => {
                 removeFolder(sessionDir);
             } else if (connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                if (statusCode !== 401) {
-                    // Retry or cleanup if needed
+                // Cleanup temp folder if connection fails completely
+                if (statusCode === 401) {
+                    removeFolder(sessionDir);
                 }
             }
         });
