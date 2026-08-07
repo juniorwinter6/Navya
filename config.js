@@ -1,31 +1,43 @@
 module.exports = {
-    // Dynamically load the Base64 session string from environment variables
+    // Base64 session string (if user already has one)
     SESSION_ID: process.env.SESSION_ID || "",
 
-    // Auth settings for linking the device
+    // Bot number used for generating pairing code in server logs
+    BOT_NUMBER: process.env.BOT_NUMBER || "2348115336615",
+
+    // Auth settings
     auth: {
         usePairingCode: true,
-        phoneNumber: "2348115336615" // Updated to your active WhatsApp number
+        phoneNumber: process.env.BOT_NUMBER || "2348115336615"
     },
 
     // The symbol used to trigger commands
-    PREFIX: "!",
+    PREFIX: process.env.PREFIX || "!",
 
-    // All your owner numbers collected into a clean list
-    // config.js
-    OWNERS: [
-        "2348058068041",
-        "2348115336615",
-        "100399675609189" // Your WhatsApp LID
-    ],
+    // All owner numbers (reads comma-separated values from env, or uses default list)
+    OWNERS: process.env.OWNERS
+        ? process.env.OWNERS.split(",")
+        : [
+            "2348058068041",
+            "2348115336615",
+            "100399675609189" // WhatsApp LID
+        ],
 
     // Additional aliases used by various command modules
-    OWNER: ["2348058068041", "2348115336615"],
-    MODS: ["2349130961572"],
+    OWNER: process.env.OWNER
+        ? process.env.OWNER.split(",")
+        : ["2348058068041", "2348115336615"],
 
-    // Primary owner details for the .owner command display
-    OWNER_NAME: "Rise",
-    OWNER_NUMBER: "2348058068041",
-    INSTAGRAM: "https://www.instagram.com/winterrise",
-    GITHUB: "https://github.com/juniorwinter6"
+    MODS: process.env.MODS
+        ? process.env.MODS.split(",")
+        : ["2349130961572"],
+
+    // Primary owner details for .owner command display
+    OWNER_NAME: process.env.OWNER_NAME || "Rise",
+    OWNER_NUMBER: process.env.OWNER_NUMBER || "2348058068041",
+    INSTAGRAM: process.env.INSTAGRAM || "https://www.instagram.com/winterrise",
+    GITHUB: process.env.GITHUB || "https://github.com/juniorwinter6",
+
+    // Bot work mode ('public' or 'private')
+    MODE: process.env.MODE || "public"
 };
