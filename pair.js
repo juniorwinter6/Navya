@@ -7,38 +7,34 @@ const {
     useMultiFileAuthState,
     delay,
     makeCacheableSignalKeyStore,
-    Browsers
+    Browsers,
+    DisconnectReason
 } = require('@whiskeysockets/baileys');
 
 const router = express.Router();
 
-// Helper function to safely delete temporary session folders
 function removeFolder(dir) {
     if (fs.existsSync(dir)) {
         try {
             fs.rmSync(dir, { recursive: true, force: true });
         } catch (e) {
-            console.error("Error removing directory:", e);
+            console.error("Folder deletion error:", e);
         }
     }
 }
 
-// Serve pair.html interface
 router.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'pair.html'));
 });
 
-// Pairing code API endpoint
 router.get('/code', async (req, res) => {
     let phone = req.query.number;
     if (!phone) {
         return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    // Clean phone number to pure digits
     phone = phone.replace(/[^0-9]/g, '');
 
-    // Temporary unique session folder for auth state
     const sessionDir = path.join(__dirname, `./temp_session_${Date.now()}`);
 
     try {
@@ -51,19 +47,33 @@ router.get('/code', async (req, res) => {
             },
             printQRInTerminal: false,
             logger: pino({ level: 'fatal' }),
-            // Official browser signature to prevent "Something went wrong" errors
-            browser: ["Windows", "Chrome", "114.0.5735.198"],
+            // Use native Baileys Browser helper for desktop registration
+            browser: Browsers.ubuntu('Chrome'),
+            markOnlineOnConnect: false,
+            generateHighQualityLinkPreview: false,
+            connectTimeoutMs: 60000,
+            keepAliveIntervalMs: 10000,
             syncFullHistory: false
         });
 
         if (!Sock.authState.creds.registered) {
-            // Delay to allow WebSocket handshake to complete on cloud servers
-            await delay(3000);
+            // Give socket time to connect properly
+            await delay(1500);
 
-            const code = await Sock.requestPairingCode(phone);
+            try {
+                // Formatting code string (adds hyphen e.g. XXXX-XXXX)
+                const code = await Sock.requestPairingCode(phone);
+                const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
 
-            if (!res.headersSent) {
-                res.json({ code: code });
+                if (!res.headersSent) {
+                    res.json({ code: formattedCode });
+                }
+            } catch (pairingErr) {
+                console.error("Error requesting pairing code:", pairingErr);
+                removeFolder(sessionDir);
+                if (!res.headersSent) {
+                    return res.status(500).json({ error: 'Failed to request pairing code from WhatsApp servers' });
+                }
             }
         }
 
@@ -75,14 +85,12 @@ router.get('/code', async (req, res) => {
             if (connection === 'open') {
                 await delay(3000);
 
-                // Read creds.json and encode into Base64 Session String
                 const credsPath = path.join(sessionDir, 'creds.json');
                 if (fs.existsSync(credsPath)) {
                     const credsData = fs.readFileSync(credsPath);
                     const base64Session = Buffer.from(credsData).toString('base64');
                     const sessionId = "NAVYA~" + base64Session;
 
-                    // Send the session ID directly to the user's WhatsApp DM
                     const userJid = Sock.user.id.split(':')[0] + '@s.whatsapp.net';
                     await Sock.sendMessage(userJid, {
                         text: `🎉 *NAVYA BOT SESSION CONNECTED*\n\nHere is your SESSION_ID. Copy and keep it safe:\n\n\`\`\`${sessionId}\`\`\`\n\n*Note:* Do not share this key with anyone!`
@@ -93,9 +101,8 @@ router.get('/code', async (req, res) => {
                 await Sock.ws.close();
                 removeFolder(sessionDir);
             } else if (connection === 'close') {
-                const statusCode = lastDisconnect?.error?.output?.statusCode;
-                // Cleanup temp folder if connection fails completely
-                if (statusCode === 401) {
+                const reason = lastDisconnect?.error?.output?.statusCode;
+                if (reason === DisconnectReason.loggedOut || reason === 401) {
                     removeFolder(sessionDir);
                 }
             }
@@ -105,7 +112,7 @@ router.get('/code', async (req, res) => {
         console.error("Pairing Error:", err);
         removeFolder(sessionDir);
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to generate pairing code' });
+            res.status(500).json({ error: 'Pairing service error' });
         }
     }
 });
