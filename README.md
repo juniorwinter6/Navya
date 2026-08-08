@@ -90,7 +90,7 @@ nano .env
 #### 2. Koyeb Deployment
 * Fork this repository to your GitHub account.
 * Log in to [Koyeb](https://app.koyeb.com/) and create a new Web Service.
-* Choose GitHub as your source and select your forked `Navya-Bot` repository.
+* Choose GitHub as your source and select your forked `Navya` repository.
 * In the **Environment Variables** section, add your keys (`BOT_NAME`, `BOT_NUMBER`, `OWNER_NUMBER`, `GEMINI_API_KEY`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`).
 * Set the run command to `npm start` and deploy.
 * Check the **Runtime Logs** to retrieve your 8-digit pairing code.
