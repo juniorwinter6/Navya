@@ -75,7 +75,7 @@ nano .env
 * Fork this repository to your GitHub account.
 * Click the button below to launch automated setup:
 
-  [[Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
+  [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
 * On the Render setup screen, fill in your environment variables:
   * `BOT_NAME`
