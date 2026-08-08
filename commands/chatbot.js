@@ -1,49 +1,51 @@
-const fs = require("fs")
-
-const DB = "./lib/chatbot.json"
+// commands/chatbot.js
+const config = require("../config");
 
 module.exports = {
     name: "chatbot",
+    alias: ["aichat", "groupai"],
+    category: "owner",
+    description: "Toggle automatic AI interaction in WhatsApp groups",
 
     async execute(sock, m, args) {
+        const from = m.key.remoteJid;
+        const prefix = config.PREFIX || ".";
 
-        const from = m.key.remoteJid
+        // Check if caller is owner
+        const isGroup = from.endsWith('@g.us');
+        const senderJid = isGroup ? (m.key.participant || from) : from;
+        const senderNumber = senderJid.replace(/[^0-9]/g, '');
+        const isFromMe = m.key.fromMe;
 
-        let data = {}
-        if (fs.existsSync(DB)) {
-            data = JSON.parse(fs.readFileSync(DB))
+        const ownerList = (config.OWNERS || []).map(num => String(num).replace(/[^0-9]/g, ''));
+        if (config.OWNER_NUMBER) {
+            ownerList.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ''));
         }
 
-        if (!data[from]) {
-            data[from] = { enabled: false }
+        const isOwner = isFromMe || ownerList.includes(senderNumber);
+
+        if (!isOwner) {
+            await sock.sendMessage(from, { text: "❌ Only bot owners can toggle Group Chatbot status." }, { quoted: m });
+            return;
         }
 
-        const option = args[0]?.toLowerCase()
+        const option = args[0]?.toLowerCase();
 
-        if (!option) {
-            return sock.sendMessage(from, {
-                text: `🤖 Chatbot Settings
-
-Status: ${data[from].enabled ? "ON" : "OFF"}
-
-Use:
-.chatbot on
-.chatbot off`
-            })
+        if (option === "on" || option === "enable") {
+            config.CHATBOT = true;
+            await sock.sendMessage(from, {
+                text: "🤖 *Group AI Chatbot is now ENABLED!*\nBot will now reply to group messages like Gemini."
+            }, { quoted: m });
+        } else if (option === "off" || option === "disable") {
+            config.CHATBOT = false;
+            await sock.sendMessage(from, {
+                text: "🤖 *Group AI Chatbot is now DISABLED!*"
+            }, { quoted: m });
+        } else {
+            const status = config.CHATBOT ? "ENABLED 🟢" : "DISABLED 🔴";
+            await sock.sendMessage(from, {
+                text: `🤖 *Group Chatbot Status:* *${status}*\n\n*Usage:*\n• \`${prefix}chatbot on\` - Enable AI in groups\n• \`${prefix}chatbot off\` - Disable AI in groups`
+            }, { quoted: m });
         }
-
-        if (option === "on") {
-            data[from].enabled = true
-        }
-
-        if (option === "off") {
-            data[from].enabled = false
-        }
-
-        fs.writeFileSync(DB, JSON.stringify(data, null, 2))
-
-        return sock.sendMessage(from, {
-            text: `🤖 Chatbot is now ${data[from].enabled ? "ON" : "OFF"}`
-        })
     }
-}
+};

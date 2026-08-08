@@ -1,78 +1,77 @@
 # 🤖 Navya WhatsApp Bot
 
-A powerful, multi-purpose WhatsApp userbot built with Node.js and Baileys. Features automated NSFW image detection, group moderation tools, anti-call protection, and custom administrative controls.
+A powerful, multi-purpose WhatsApp userbot built with Node.js and Baileys. Includes built-in group moderation, automatic NSFW detection, anti-call protection, and customizable commands.
 
 ---
 
 ## 🌟 Features
 
-* **🛡️ NSFW & Anti-Porn Moderation:** Automatically scans group images using Sightengine API and removes explicit content.
-* **📞 Anti-Call System:** Automatically declines or blocks incoming WhatsApp calls to keep the bot session active.
-* **⚡ Group Management:** Dynamic admin commands, custom command prefixes, and member management.
-* **🌐 Cloud Ready:** Pre-configured for deployment on Koyeb, Render, Katabump, and Pterodactyl hosting panels.
+* **NSFW Moderation:** Powered by Sightengine API to automatically scan and delete explicit images in groups.
+* **Anti-Call System:** Automatically decline or block unwanted incoming WhatsApp calls.
+* **Group Management:** Built-in moderation tools, customizable prefixes, and admin controls.
 
 ---
 
 ## ⚙️ Environment Variables Setup
 
-Configure the following environment variables in your `.env` file or cloud dashboard:
+Whether hosting locally or on a cloud panel, configure the following environment variables:
 
-| Variable | Required | Description | Where to get it |
-| :--- | :---: | :--- | :--- |
-| `SESSION_ID` | **Yes** | Your WhatsApp authentication session string | From your pairing site |
-| `BOT_NUMBER` | **Yes** | Phone number assigned to the bot (e.g., `2347077445628`) | Your WhatsApp number |
-| `SIGHTENGINE_USER` | **Yes** | API User ID for Anti-Porn image scanning | [Sightengine Dashboard](https://sightengine.com/) |
-| `SIGHTENGINE_SECRET` | **Yes** | API Secret Key for Anti-Porn image scanning | [Sightengine Dashboard](https://sightengine.com/) |
-| `OWNER_NUMBER` | **Yes** | Main owner's phone number | e.g. `2348058068041` |
-| `OWNER_NAME` | Optional | Main owner's display name | e.g. `Rise` |
-| `PREFIX` | Optional | Bot command prefix (Default: `.`) | Custom preference |
+| Variable | Description | Where to get it |
+| :--- | :--- | :--- |
+| `SESSION_ID` | Your WhatsApp authentication session string | From your pairing site |
+| `BOT_NUMBER` | Phone number assigned to the bot (without `+`) | e.g. `2347077445628` |
+| `SIGHTENGINE_USER` | API User ID for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
+| `SIGHTENGINE_SECRET` | API Secret Key for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
+| `OWNER_NUMBER` | Bot owner's phone number | e.g. `2348058068041` |
+| `OWNER_NAME` | Bot owner's display name | e.g. `Rise` |
 
 ---
 
-## 🛠️ Environment Configuration Template (`.env`)
+## 🚀 Installation & Deployment
 
-Create a `.env` file in your project root folder and paste the following:
+### Method A: Local / VPS Setup
 
-```env
-# SERVER & BOT CONFIGURATION
-PORT=3000
-BOT_NAME=Navya
-BOT_NUMBER=2347077445628
-PREFIX=.
-MODE=public
-ANTICALL=false
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
+   cd Navya-Bot
+   ```
 
-# SESSION & AUTHENTICATION
-SESSION_ID=your_session_id_here
-
-# ANTI-PORN API KEYS (Sightengine)
-SIGHTENGINE_USER=your_sightengine_user_here
-SIGHTENGINE_SECRET=your_sightengine_secret_here
-
-# OWNER DETAILS
-OWNER_NAME=Rise
-OWNER_NUMBER=2348058068041
-OWNERS=2348058068041,2348115336615
-OWNER=2348058068041,2348115336615
-MODS=2349130961572
-
-# SOCIAL LINKS
-INSTAGRAM=[https://www.instagram.com/winterrise](https://www.instagram.com/winterrise)
-GITHUB=[https://github.com/juniorwinter6](https://github.com/juniorwinter6)
-
-
-🚀 Installation & Deployment
-Method 1: Local / VPS Setup
-1.  Clone the repository:
-  git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
-cd Navya-Bot
-
-2.  Install dependencies:
+2. **Install dependencies:**
+   ```bash
    npm install
+   ```
 
-3.  Configure Environment Variables:
+3. **Configure Environment Variables:**
+   Copy the example environment file and add your credentials:
+   ```bash
    cp .env.example .env
-   Open .env in any text editor and fill in your keys.
+   ```
+   Open `.env` in any text editor and fill in your details.
 
-4.  Start the bot:
+4. **Start the bot:**
+   ```bash
    npm start
+   ```
+
+---
+
+### Method B: Cloud Deployment (Koyeb / Render / Katabump / Panels)
+
+1. **Koyeb & Render:**
+   * Fork this repository to your GitHub account.
+   * Create a new Web Service on Koyeb or Render and link your forked repository.
+   * Go to **Environment Variables** in the dashboard and add `SESSION_ID`, `BOT_NUMBER`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`, and `OWNER_NUMBER`.
+   * Set start command to `npm start` and deploy!
+
+2. **Katabump & Pterodactyl Panels:**
+   * Upload your files or import the repository inside your panel console.
+   * Navigate to the **Startup / Environment** tab and input your environment variables into the fields.
+   * Go to the Console, run `npm install`, and start the instance.
+
+---
+
+## 🛡️ License & Credits
+
+* Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
+* Powered by [Baileys](https://github.com/WhiskeySockets/Baileys) and [Sightengine](https://sightengine.com/).

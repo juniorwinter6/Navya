@@ -18,6 +18,7 @@ const {
 // Custom Utilities & Schedulers
 const { startQuoteScheduler } = require('./utils/quoteScheduler');
 const { scanIncomingMedia } = require('./utils/nsfwScanner');
+const { startAutoCleaner } = require('./utils/autoCleaner');
 //const pairRouter = require("./server");
 const config = require('./config');
 
@@ -159,8 +160,20 @@ async function startBot() {
     sock.ev.on("creds.update", saveCreds);
 
     // Only prompt for pairing code if STILL not registered (i.e. SESSION_ID was missing or invalid)
+    // Check if user is not registered yet
     if (!sock.authState.creds.registered) {
-        const phoneNumber = "2348115336615";
+        // 1. Read directly from config.js
+        let phoneNumber = config.BOT_NUMBER;
+
+        if (!phoneNumber) {
+            console.error("❌ ERROR: BOT_NUMBER is not set in config.js!");
+            return;
+        }
+
+        // 2. Remove all non-digits (+, spaces, hyphens)
+        phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
+
+        console.log(`\n🔍 Trying to generate pairing code for: ${phoneNumber}`);
 
         setTimeout(async () => {
             try {
@@ -168,7 +181,7 @@ async function startBot() {
                 const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
 
                 console.log("\n=================================");
-                console.log(`📱 WHATSAPP PAIRING CODE: ${formattedCode}`);
+                console.log(`📱 WHATSAPP PAIRING CODE FOR ${phoneNumber}: ${formattedCode}`);
                 console.log("=================================\n");
             } catch (err) {
                 console.error("❌ Error requesting pairing code:", err.message);
@@ -203,43 +216,45 @@ async function startBot() {
     });
 
 
-
     // ======================
     // ANTICALL SYSTEM
+    // ======================
+    // ANTICALL SYSTEM (Simple Reject & Text)
     // ======================
     const activeCalls = new Set();
 
     sock.ev.on("call", async (calls) => {
-        try {
-            const db = loadJSON("./lib/anticall.json");
+        if (!config.ANTICALL) return;
 
-            for (const call of calls) {
-                const caller = call.from;
-                if (activeCalls.has(caller)) return;
+        for (const call of calls) {
+            // Only process incoming call offers
+            if (call.status !== "offer") continue;
 
-                activeCalls.add(caller);
-                setTimeout(() => activeCalls.delete(caller), 10000);
+            const rawCaller = call.from;
+            if (!rawCaller) continue;
 
-                try {
-                    await sock.rejectCall(call.id, caller);
-                } catch { }
-
-                db[caller] = db[caller] || { warns: 0 };
-                db[caller].warns++;
-
-                if (db[caller].warns < 2) {
-                    await sock.sendMessage(caller, {
-                        text: `╭━━〔 🚫 𝐍𝐀𝐕𝐘𝐀 𝐀𝐍𝐓𝐈𝐂𝐀𝐋𝐋 〕━━╮\n\n⚠️ Do not call me!\n\n📛 Warning:\n${db[caller].warns}/2\n\n🚷 Repeated calls will lead to automatic block.\n\n╰━━━━━━━━━━━━━━╯`
-                    });
-                } else {
-                    await sock.sendMessage(caller, { text: "🚫 Blocked for calling bot" });
-                    await sock.updateBlockStatus(caller, "block");
-                    delete db[caller];
-                }
-                saveJSON("./lib/anticall.json", db);
+            // 1. Reject the incoming call immediately
+            try {
+                await sock.rejectCall(call.id, rawCaller);
+            } catch (rejectErr) {
+                console.error("Failed to reject call:", rejectErr);
             }
-        } catch (err) {
-            console.log("ANTICALL ERROR:", err);
+
+            // 2. Debounce to avoid sending multiple texts if calls burst
+            if (activeCalls.has(rawCaller)) continue;
+            activeCalls.add(rawCaller);
+            setTimeout(() => activeCalls.delete(rawCaller), 5000);
+
+            // 3. Send auto-reply text message
+            try {
+                const botName = config.BOT_NAME || "Navya";
+                await sock.sendMessage(rawCaller, {
+                    text: `⚠️ *FUCK YOU BITCH, DON'T CALL ME* 😡🖕🏻`
+                });
+                console.log(`📞 Auto-rejected call & sent notification to ${rawCaller}`);
+            } catch (msgErr) {
+                console.error("Failed to send anti-call text:", msgErr);
+            }
         }
     });
 
@@ -260,15 +275,36 @@ async function startBot() {
             const isGroup = from.endsWith('@g.us');
 
             // ========================================================
-            // 📊 AUTOMATED CHAT ANALYTICS TRACKER
+            // 1. EXTRACT SENDER & UNIFIED OWNER CHECK FIRST
             // ========================================================
+            const sender = m.sender || (isGroup ? m.key.participant : from) || "";
+            const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
+            const isFromMe = m.key.fromMe;
 
+            // Get owner list from config or global
+            const rawOwners = (typeof config !== "undefined" && config.OWNERS)
+                ? config.OWNERS
+                : (global.OWNERS || []);
 
+            const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
+            if (typeof config !== "undefined" && config.OWNER_NUMBER) {
+                cleanedOwners.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ""));
+            }
+
+            // Define isOwner ONCE right here (handles array, single number, self, and LID)
+            const isOwner = isFromMe || cleanedOwners.includes(cleanSenderNumber) || sender.includes("100399675609189");
 
             // ========================================================
-            // 🔥 AUTOMATED ANTIPORN FILTER (IMAGES, VIDEOS, STICKERS)
+            // 2. 🔒 PUBLIC / PRIVATE MODE GUARD
             // ========================================================
-            if (!m.key.fromMe) {
+            if (config.MODE === "private" && !isOwner) {
+                return; // Stop processing immediately for non-owners in private mode
+            }
+
+            // ========================================================
+            // 3. 🔥 AUTOMATED ANTIPORN FILTER (IMAGES, VIDEOS, STICKERS)
+            // ========================================================
+            if (!isFromMe) {
                 try {
                     const { scanIncomingMedia } = require('./utils/nsfwScanner');
                     await scanIncomingMedia(sock, m);
@@ -278,7 +314,7 @@ async function startBot() {
             }
 
             // ========================================================
-            // 1. EXTRACT TEXT IMMEDIATELY (Fixes the ReferenceError)
+            // 4. EXTRACT TEXT IMMEDIATELY
             // ========================================================
             const messageType = Object.keys(m.message)[0];
             let text = "";
@@ -294,7 +330,7 @@ async function startBot() {
             text = (text || "").trim();
 
             // ========================================================
-            // 2. PERSISTENT MENU SELECTION INTERCEPTOR
+            // 5. PERSISTENT MENU SELECTION INTERCEPTOR
             // ========================================================
             if (global.videoCache && global.videoCache[from]) {
                 if (text === "1" || text === "2") {
@@ -317,33 +353,15 @@ async function startBot() {
                 }
             }
 
-            if (!text) return; // Now it is safe to return if no text exists
+            if (!text) return; // Safe to return if no text exists
 
             // ==========================================================
+            // 6. COMMAND PARSING & LOOP BYPASS
             // ==========================================================
-            // ==========================================================
-            // 3. VARIABLE PARSING & LOOP BYPASS
-            // ==========================================================
-            // Grab potential sender properties (m.sender usually resolves @lid to @s.whatsapp.net)
-            const sender = m.sender || m.key.participant || m.key.remoteJid || "";
-            const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
+            const isCommand = text.startsWith(global.PREFIX || config.PREFIX || "!");
 
-            // Grab owners from config or global
-            const rawOwners = (typeof config !== "undefined" && config.OWNERS)
-                ? config.OWNERS
-                : (global.OWNERS || []);
-
-            const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
-
-            // Check against cleaned owners OR check directly for your LID
-            const isOwner = cleanedOwners.includes(cleanSenderNumber) || sender.includes("100399675609189");
-
-            const isCommand = text.startsWith(global.PREFIX || "!");
-
-            if (m.key.fromMe) {
-                if (!text.startsWith(global.PREFIX || "!")) {
-                    return;
-                }
+            if (isFromMe && !isCommand) {
+                return;
             }
 
             // ========================================================
@@ -428,36 +446,7 @@ async function startBot() {
             }
             // ------------------------------------------
             // KEYWORD FLAG SYSTEM
-            // ------------------------------------------
-            const flagText = text.toLowerCase();
 
-            // 1. Extract the sender's actual WhatsApp JID safely
-
-
-            // 2. Extract just the clean phone number (remove @s.whatsapp.net)
-            const senderNumber = sender.split('@')[0].split(':')[0];
-
-            // 3. For WhatsApp mentions to work, the text MUST be formatted as @phoneNumber
-            const styledUser = `@${senderNumber}`;
-
-            const flagCategories = [
-                { words: ["gay", "lesbian", "transgender"], reply: `🚫 Gay Detected!\n\n${styledUser} is a full blooded gay.` },
-                { words: ["trump", "america", "americans"], reply: `🚫 Gay Detected!\n\n${styledUser}, Trump, America, Americans, USA are full blooded gay.` },
-                { words: ["france", "macron", "israel", "netanyahu", "usa"], reply: `🚫 Gay Detected!\n\n${styledUser}, France, Macron, Israel, Netanyahu, USA are full blooded gay.` }
-            ];
-
-            let flagged = false;
-            for (const category of flagCategories) {
-                if (category.words.some(word => flagText.includes(word))) {
-                    await sock.sendMessage(from, {
-                        text: category.reply,
-                        mentions: [sender] // The text '@phone' matches this JID link perfectly!
-                    }, { quoted: m });
-                    flagged = true;
-                    break;
-                }
-            }
-            if (flagged) return;
 
             // ========================================================
             // 🛡️ UNIFIED ANTI-SPAM & LINK PROTECTION SYSTEM
@@ -603,33 +592,13 @@ async function startBot() {
             }
 
             // ------------------------------------------
-            // 🌟 NAVYA AI CHATBOT SYSTEM
-            // ------------------------------------------
-            const myBotId = sock.user?.id ? sock.user.id.split("@")[0].split(":")[0] : null;
-            const isMentioned = myBotId ? text.includes(`@${myBotId}`) : false;
-
-            if (!isCommand && (isMentioned || !isGroup)) {
-                try {
-                    const cleanPrompt = myBotId ? text.replace(new RegExp(`@${myBotId}`, 'g'), '').trim() : text;
-                    await sock.sendPresenceUpdate('composing', from);
-
-                    const aiResponse = await ai.models.generateContent({
-                        model: "gemini-2.5-flash",
-                        contents: cleanPrompt,
-                    });
-
-                    await sock.sendMessage(from, { text: aiResponse.text || "..." }, { quoted: m });
-                } catch (aiErr) {
-                    console.error("Gemini AI Error:", aiErr);
-                }
-            }
-
         } catch (err) {
             console.error("🚨 CRITICAL LOOP ERROR:", err);
         }
     });
 
-
 }
 
+// Initialize background maintenance & launch
+startAutoCleaner(60);
 startBot();

@@ -1,5 +1,5 @@
 const hour = new Date().getHours()
-
+const config = require("../config"); // Adjust path if menu.js is inside commands/
 let greet = "💫 Hello"
 
 if (hour >= 5 && hour < 12) greet = "🌅 Good Morning"
@@ -162,7 +162,7 @@ module.exports = {
 🍁 *Hello* @${sender.split("@")[0]}
 ${greet}
 
-🌸 *I'm Navya — your WhatsApp assistant*
+🌸 *I'm ${config.BOT_NAME} — your WhatsApp assistant*
 💫 *Created by Rise*
 
 ────────────────────
@@ -203,8 +203,8 @@ ${greet}
 ────────────────────
 ✧ !bc | !block | !ban | !cast
 ✧ !eval | !unban | !unblock
-✧ !antidelete | !chatbot
-
+✧ !antidelete | !chatbot | !mode 
+✧ !anticall 
 ────────────────────
 💖 *DAILY QUOTE*
 ────────────────────
