@@ -8,7 +8,7 @@ Whether you need strict group protection, automated AI features, or simple utili
 
 ## 🌟 Features
 
-* **NSFW Moderation:** Powered by the Sightengine API to automatically scan, flag, and delete explicit images sent in groups.
+* **NSFW (antiporn) Moderation:** Powered by the Sightengine API to automatically scan, flag, and delete explicit images sent in groups.
 * **AI Integration:** Seamlessly generate text responses using Google Gemini and create images on demand with Hugging Face FLUX models.
 * **Anti-Call System:** Automatically declines or blocks unwanted incoming WhatsApp voice/video calls.
 * **Group Management:** Built-in moderation tools, customizable command prefixes, and full administrative controls.
@@ -37,7 +37,7 @@ Whether hosting locally or on a cloud panel, configure the following environment
 ### Method A: Local / VPS Setup
 
 1. **Clone the repository:**
-   git clone https://github.com/juniorwinter6/Navya-Bot.git
+   git clone https://github.com/juniorwinter6/Navya.git
    cd Navya-Bot
 
 2. **Install dependencies:**
@@ -58,7 +58,7 @@ Whether hosting locally or on a cloud panel, configure the following environment
 * Fork this repository to your GitHub account.
 * Click the button below to launch automated setup:
 
-  [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya-Bot)
+  [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
 * On the Render setup screen, fill in your environment variables:
   * `BOT_NAME`
