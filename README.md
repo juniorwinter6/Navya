@@ -38,14 +38,21 @@ Whether hosting locally or on a cloud panel, configure the following environment
 
 1. **Clone the repository:**
    git clone https://github.com/juniorwinter6/Navya.git
-   cd Navya-Bot
+   cd Navya
 
 2. **Install dependencies:**
    npm install
 
 3. **Configure Environment Variables:**
-   Rename `.env.example` to `.env` and fill in your details:
-   cp .env.example .env
+   Create your .env file from the example template and open it in a text editor:
+
+*Windows (PowerShell / Command Prompt):*
+copy .env.example .env
+notepad .env
+
+*Linux / Mac / VPS:*
+cp .env.example .env
+nano .env
 
 4. **Start the bot:**
    npm start
