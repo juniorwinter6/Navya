@@ -54,7 +54,7 @@ Whether hosting locally or on a cloud panel, configure the following environment
    * Fork this repository to your GitHub account.
    * Click the button below to start deployment:
 
-     [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya-Bot)
+     [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
    * Fill in your details (`BOT_NUMBER`, `OWNER_NUMBER`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`) on the Render setup screen and click **Apply**.
    * Once deployed, open the **Logs** tab on your Render dashboard to get your **8-digit pairing code** and link your WhatsApp!
