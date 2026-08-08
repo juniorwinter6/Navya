@@ -2,6 +2,7 @@ services:
   - type: web
     name: navya-bot
     env: node
+    plan: free
     buildCommand: npm install
     startCommand: node index.js
     envVars:
