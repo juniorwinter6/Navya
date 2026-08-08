@@ -46,11 +46,11 @@ Whether hosting locally or on a cloud panel, configure the following environment
 3. **Configure Environment Variables:**
    Create your .env file from the example template and open it in a text editor:
 
-*Windows (PowerShell / Command Prompt):*
+**Windows (PowerShell / Command Prompt):**
 copy .env.example .env
 notepad .env
 
-*Linux / Mac / VPS:*
+**Linux / Mac / VPS:**
 cp .env.example .env
 nano .env
 
