@@ -7,7 +7,7 @@ services:
     startCommand: node index.js
     envVars:
       - key: PREFIX
-        value: "."
+        sync: false
       - key: BOT_NAME
         value: Navya
       - key: BOT_NUMBER
