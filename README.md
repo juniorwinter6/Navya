@@ -43,21 +43,29 @@ Whether hosting locally or on a cloud panel, configure the following environment
    ```
 
 2. **Install dependencies:**
+   ```bash
    npm install
+   ```
 
 3. **Configure Environment Variables:**
    Create your .env file from the example template and open it in a text editor:
 
 **Windows (PowerShell / Command Prompt):**
+```bash
 copy .env.example .env
 notepad .env
+```
 
 **Linux / Mac / VPS:**
+```bash
 cp .env.example .env
 nano .env
+```
 
 4. **Start the bot:**
+   ```bash
    npm start
+   ```
 
 ---
 
@@ -67,7 +75,7 @@ nano .env
 * Fork this repository to your GitHub account.
 * Click the button below to launch automated setup:
 
-  [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
+  [[Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
 * On the Render setup screen, fill in your environment variables:
   * `BOT_NAME`
