@@ -37,8 +37,10 @@ Whether hosting locally or on a cloud panel, configure the following environment
 ### Method A: Local / VPS Setup
 
 1. **Clone the repository:**
+   ```bash
    git clone https://github.com/juniorwinter6/Navya.git
    cd Navya
+   ```
 
 2. **Install dependencies:**
    npm install
