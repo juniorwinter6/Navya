@@ -32,42 +32,41 @@ Whether hosting locally or on a cloud panel, configure the following environment
 ### Method A: Local / VPS Setup
 
 1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
+   git clone https://github.com/juniorwinter6/Navya-Bot.git
    cd Navya-Bot
-   Install dependencies:
+
+2. **Install dependencies:**
    npm install
 
-   Configure Environment Variables:
-Rename .env.example to .env and input your details:
-cp .env.example .env
-Open .env in any text editor and fill in your variables.
+3. **Configure Environment Variables:**
+   Rename `.env.example` to `.env` and input your details:
+   cp .env.example .env
+   Open `.env` in any text editor and fill in your variables.
 
-Start the bot:
+4. **Start the bot:**
+   npm start
 
-Bash
-npm start
+---
 
-Method B: Cloud & Panel Deployment (Render / Katabump / Panels)
-Render (One-Click Cloud Deployment):
+### Method B: Cloud & Panel Deployment (Render / Katabump / Panels)
 
-Fork this repository to your GitHub account.
+1. **Render (One-Click Cloud Deployment):**
+   * Fork this repository to your GitHub account.
+   * Click the button below to start deployment:
 
-Click the button below to start deployment:
+     [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya-Bot)
 
-Fill in your details (BOT_NUMBER, OWNER_NUMBER, SIGHTENGINE_USER, SIGHTENGINE_SECRET) on the Render setup screen and click Apply.
+   * Fill in your details (`BOT_NUMBER`, `OWNER_NUMBER`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`) on the Render setup screen and click **Apply**.
+   * Once deployed, open the **Logs** tab on your Render dashboard to get your **8-digit pairing code** and link your WhatsApp!
 
-Once deployed, open the Logs tab on your Render dashboard to get your 8-digit pairing code and link your WhatsApp!
+2. **Katabump / Web Panels:**
+   * Upload the repository zip or pull directly from Git inside your panel.
+   * Rename `.env.example` to `.env` in the File Manager and fill in your variables (`BOT_NUMBER`, `OWNER_NUMBER`, etc.).
+   * Start the bot, check the console/logs for your pairing code, and link your WhatsApp!
 
-Katabump / Web Panels:
+---
 
-Upload the repository zip or pull directly from Git inside your panel.
+## 🛡️ License & Credits
 
-Rename .env.example to .env in the File Manager and fill in your variables (BOT_NUMBER, OWNER_NUMBER, etc.).
-
-Start the bot, check the console/logs for your pairing code, and link your WhatsApp!
-
-🛡️ License & Credits
-Developed by Rise (@juniorwinter6)
-
-Powered by Baileys and Sightengine.
+* Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
+* Powered by [Baileys](https://github.com/WhiskeySockets/Baileys) and [Sightengine](https://sightengine.com/).
