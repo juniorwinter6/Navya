@@ -1,71 +1,78 @@
 # 🤖 Navya WhatsApp Bot
 
-A powerful, multi-purpose WhatsApp userbot built with Node.js, Baileys, and Gemini AI. Includes built-in group moderation, automatic NSFW detection, and customizable commands.
+A powerful, multi-purpose WhatsApp userbot built with Node.js and Baileys. Features automated NSFW image detection, group moderation tools, anti-call protection, and custom administrative controls.
 
 ---
 
 ## 🌟 Features
 
-* **AI Chatbot:** Powered by Google's Gemini 2.5 Flash for natural group and private conversations.
-* **NSFW Moderation:** Powered by Sightengine API to scan and moderate explicit images in groups.
-* **Custom Prefix & Anti-Call:** Prevent unwanted calls and manage admin permissions easily.
+* **🛡️ NSFW & Anti-Porn Moderation:** Automatically scans group images using Sightengine API and removes explicit content.
+* **📞 Anti-Call System:** Automatically declines or blocks incoming WhatsApp calls to keep the bot session active.
+* **⚡ Group Management:** Dynamic admin commands, custom command prefixes, and member management.
+* **🌐 Cloud Ready:** Pre-configured for deployment on Koyeb, Render, Katabump, and Pterodactyl hosting panels.
 
 ---
 
 ## ⚙️ Environment Variables Setup
 
-Whether hosting locally or on a cloud panel, you will need the following environment variables:
+Configure the following environment variables in your `.env` file or cloud dashboard:
 
-| Variable | Description | Where to get it |
-| :--- | :--- | :--- |
-| `SESSION_ID` | Your WhatsApp authentication session string | From your pairing site |
-| `GEMINI_API_KEY` | Key for AI response generation | [Google AI Studio](https://aistudio.google.com/) |
-| `SIGHTENGINE_USER` | API User ID for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
-| `SIGHTENGINE_SECRET` | API Secret Key for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
-| `OWNER_NUMBER` | Bot owner's phone number (with country code) | e.g. `2348058068041` |
+| Variable | Required | Description | Where to get it |
+| :--- | :---: | :--- | :--- |
+| `SESSION_ID` | **Yes** | Your WhatsApp authentication session string | From your pairing site |
+| `BOT_NUMBER` | **Yes** | Phone number assigned to the bot (e.g., `2347077445628`) | Your WhatsApp number |
+| `SIGHTENGINE_USER` | **Yes** | API User ID for Anti-Porn image scanning | [Sightengine Dashboard](https://sightengine.com/) |
+| `SIGHTENGINE_SECRET` | **Yes** | API Secret Key for Anti-Porn image scanning | [Sightengine Dashboard](https://sightengine.com/) |
+| `OWNER_NUMBER` | **Yes** | Main owner's phone number | e.g. `2348058068041` |
+| `OWNER_NAME` | Optional | Main owner's display name | e.g. `Rise` |
+| `PREFIX` | Optional | Bot command prefix (Default: `.`) | Custom preference |
 
 ---
 
-## 🚀 Installation & Deployment
+## 🛠️ Environment Configuration Template (`.env`)
 
-### Method A: Local / VPS Setup
+Create a `.env` file in your project root folder and paste the following:
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
-   cd Navya-Bot
-   ```
+```env
+# SERVER & BOT CONFIGURATION
+PORT=3000
+BOT_NAME=Navya
+BOT_NUMBER=2347077445628
+PREFIX=.
+MODE=public
+ANTICALL=false
 
-2. **Install dependencies:**
-   ```bash
+# SESSION & AUTHENTICATION
+SESSION_ID=your_session_id_here
+
+# ANTI-PORN API KEYS (Sightengine)
+SIGHTENGINE_USER=your_sightengine_user_here
+SIGHTENGINE_SECRET=your_sightengine_secret_here
+
+# OWNER DETAILS
+OWNER_NAME=Rise
+OWNER_NUMBER=2348058068041
+OWNERS=2348058068041,2348115336615
+OWNER=2348058068041,2348115336615
+MODS=2349130961572
+
+# SOCIAL LINKS
+INSTAGRAM=[https://www.instagram.com/winterrise](https://www.instagram.com/winterrise)
+GITHUB=[https://github.com/juniorwinter6](https://github.com/juniorwinter6)
+
+
+🚀 Installation & Deployment
+Method 1: Local / VPS Setup
+1.  Clone the repository:
+  git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
+cd Navya-Bot
+
+2.  Install dependencies:
    npm install
-   ```
 
-3. **Configure Environment Variables:**
-   Copy the example environment file and add your API keys:
-   ```bash
+3.  Configure Environment Variables:
    cp .env.example .env
-   ```
-   Open `.env` in any text editor and fill in your details.
+   Open .env in any text editor and fill in your keys.
 
-4. **Start the bot:**
-   ```bash
+4.  Start the bot:
    npm start
-   ```
-
----
-
-### Method B: Cloud Panel Deployment (Render / Heroku / Panel)
-
-1. Fork this repository to your GitHub account.
-2. Create a new application on your hosting provider and link your forked repository.
-3. Open the **Environment Variables** / **Config Vars** section in your provider's dashboard.
-4. Add the key-value pairs listed in the table above (e.g., `GEMINI_API_KEY`, `SIGHTENGINE_USER`).
-5. Deploy!
-
----
-
-## 🛡️ License & Credits
-
-* Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
-* Powered by [Baileys](https://github.com/WhiskeySockets/Baileys), [Google Gemini AI](https://aistudio.google.com/), and [Sightengine](https://sightengine.com/).
