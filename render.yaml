@@ -1,16 +1,24 @@
 services:
   - type: web
-    name: navya-bot
+    name: navya
     env: node
     plan: free
     buildCommand: npm install
     startCommand: node index.js
     envVars:
+      - key: PREFIX
+        value: "."
       - key: BOT_NAME
         value: Navya
       - key: BOT_NUMBER
         sync: false
       - key: OWNER_NUMBER
+        sync: false
+      - key: OWNER_NAME
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: HF_TOKEN
         sync: false
       - key: SIGHTENGINE_USER
         sync: false
