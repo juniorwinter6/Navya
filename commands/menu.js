@@ -127,6 +127,16 @@ const quote = quotes[Math.floor(Math.random() * quotes.length)]
 
 const fs = require("fs")
 
+// Add all your menu image file paths here
+const menuImages = [
+    "./assets/menu1.jpg",
+    "./assets/menu2.jpg",
+    "./assets/menu3.jpg",
+    "./assets/menu4.jpg",
+    "./assets/menu5.jpg",
+    "./assets/menu6.jpg"
+]
+
 module.exports = {
 
     name: "menu",
@@ -143,8 +153,11 @@ module.exports = {
             const pushName =
                 m.pushName || "User"
 
-            const image =
-                fs.readFileSync("./assets/menu.jpg")
+            // 1. Pick a random image path from the array
+            const randomImagePath = menuImages[Math.floor(Math.random() * menuImages.length)]
+
+            // 2. Read the selected image file
+            const image = fs.readFileSync(randomImagePath)
 
             // ======================
             // CHANNEL
