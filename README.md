@@ -16,14 +16,14 @@ A powerful, multi-purpose WhatsApp userbot built with Node.js and Baileys. Inclu
 
 Whether hosting locally or on a cloud panel, configure the following environment variables:
 
-| Variable | Description | Where to get it |
+| Variable | Description | Default / Example |
 | :--- | :--- | :--- |
-| `SESSION_ID` | Your WhatsApp authentication session string | From your pairing site |
-| `BOT_NUMBER` | Phone number assigned to the bot (without `+`) | e.g. `2347077445628` |
+| `BOT_NAME` | Display name for the bot | `Navya` |
+| `BOT_NUMBER` | Phone number assigned to the bot (without `+`) | `2347077445628` |
+| `OWNER_NUMBER` | Bot owner's phone number (without `+`) | `2348058068041` |
+| `OWNER_NAME` | Bot owner's display name | `Rise` |
 | `SIGHTENGINE_USER` | API User ID for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
 | `SIGHTENGINE_SECRET` | API Secret Key for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
-| `OWNER_NUMBER` | Bot owner's phone number | e.g. `2348058068041` |
-| `OWNER_NAME` | Bot owner's display name | e.g. `Rise` |
 
 ---
 
@@ -35,43 +35,39 @@ Whether hosting locally or on a cloud panel, configure the following environment
    ```bash
    git clone [https://github.com/juniorwinter6/Navya-Bot.git](https://github.com/juniorwinter6/Navya-Bot.git)
    cd Navya-Bot
-   ```
-
-2. **Install dependencies:**
-   ```bash
+   Install dependencies:
    npm install
-   ```
 
-3. **Configure Environment Variables:**
-   Copy the example environment file and add your credentials:
-   ```bash
-   cp .env.example .env
-   ```
-   Open `.env` in any text editor and fill in your details.
+   Configure Environment Variables:
+Rename .env.example to .env and input your details:
+cp .env.example .env
+Open .env in any text editor and fill in your variables.
 
-4. **Start the bot:**
-   ```bash
-   npm start
-   ```
+Start the bot:
 
----
+Bash
+npm start
 
-### Method B: Cloud Deployment (Koyeb / Render / Katabump / Panels)
+Method B: Cloud & Panel Deployment (Render / Katabump / Panels)
+Render (One-Click Cloud Deployment):
 
-1. **Koyeb & Render:**
-   * Fork this repository to your GitHub account.
-   * Create a new Web Service on Koyeb or Render and link your forked repository.
-   * Go to **Environment Variables** in the dashboard and add `SESSION_ID`, `BOT_NUMBER`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`, and `OWNER_NUMBER`.
-   * Set start command to `npm start` and deploy!
+Fork this repository to your GitHub account.
 
-2. **Katabump & Pterodactyl Panels:**
-   * Upload your files or import the repository inside your panel console.
-   * Navigate to the **Startup / Environment** tab and input your environment variables into the fields.
-   * Go to the Console, run `npm install`, and start the instance.
+Click the button below to start deployment:
 
----
+Fill in your details (BOT_NUMBER, OWNER_NUMBER, SIGHTENGINE_USER, SIGHTENGINE_SECRET) on the Render setup screen and click Apply.
 
-## 🛡️ License & Credits
+Once deployed, open the Logs tab on your Render dashboard to get your 8-digit pairing code and link your WhatsApp!
 
-* Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
-* Powered by [Baileys](https://github.com/WhiskeySockets/Baileys) and [Sightengine](https://sightengine.com/).
+Katabump / Web Panels:
+
+Upload the repository zip or pull directly from Git inside your panel.
+
+Rename .env.example to .env in the File Manager and fill in your variables (BOT_NUMBER, OWNER_NUMBER, etc.).
+
+Start the bot, check the console/logs for your pairing code, and link your WhatsApp!
+
+🛡️ License & Credits
+Developed by Rise (@juniorwinter6)
+
+Powered by Baileys and Sightengine.
