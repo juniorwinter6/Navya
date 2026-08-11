@@ -12,7 +12,8 @@ const {
     useMultiFileAuthState,
     DisconnectReason,
     fetchLatestBaileysVersion,
-    Browsers
+    Browsers,
+    jidNormalizedUser
 } = require("@whiskeysockets/baileys");
 
 // Custom Utilities & Schedulers
@@ -22,6 +23,7 @@ const { startAutoCleaner } = require('./utils/autoCleaner');
 //const pairRouter = require("./server");
 const config = require('./config');
 
+const ytsCmd = require('./commands/downloaders/yts'); // Adjust this path if yts.js is in a different folder
 // Keep track of the scheduler state outside the connection listener
 let isSchedulerRunning = false;
 
@@ -130,6 +132,34 @@ async function initSession() {
 }
 
 
+/// =================================
+// 🔑 AUTOMATIC LID RESOLVER
+// =================================
+const ownerLidCache = new Set();
+
+async function getOwnerLids(sock, phoneNumbers = []) {
+    for (const num of phoneNumbers) {
+        if (!num) continue;
+        const cleanNum = String(num).replace(/[^0-9]/g, "");
+        if (!cleanNum) continue;
+
+        const phoneJid = `${cleanNum}@s.whatsapp.net`;
+        try {
+            const results = await sock.onWhatsApp(phoneJid);
+            if (Array.isArray(results) && results.length > 0) {
+                const user = results[0];
+                if (user && user.lid) {
+                    // Extract numeric LID (e.g., 100399675609189)
+                    const lidNum = user.lid.split('@')[0].split(':')[0];
+                    ownerLidCache.add(lidNum);
+                }
+            }
+        } catch (err) {
+            console.error(`[LID RESOLVER] Failed to resolve LID for ${cleanNum}:`, err.message);
+        }
+    }
+}
+
 // =================================
 // 🚀 3. START BOT
 // =================================
@@ -159,10 +189,7 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Only prompt for pairing code if STILL not registered (i.e. SESSION_ID was missing or invalid)
-    // Check if user is not registered yet
     if (!sock.authState.creds.registered) {
-        // 1. Read directly from config.js
         let phoneNumber = config.BOT_NUMBER;
 
         if (!phoneNumber) {
@@ -170,7 +197,6 @@ async function startBot() {
             return;
         }
 
-        // 2. Remove all non-digits (+, spaces, hyphens)
         phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
 
         console.log(`\n🔍 Trying to generate pairing code for: ${phoneNumber}`);
@@ -189,31 +215,41 @@ async function startBot() {
         }, 3000);
     }
 
-    sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+    const { startQuoteScheduler, updateSchedulerSocket } = require('./utils/quoteScheduler');
+sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
 
-        if (connection === "open") {
-            console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
+    if (connection === "open") {
+        console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
 
-            if (!isSchedulerRunning) {
-                startQuoteScheduler(sock);
-                isSchedulerRunning = true;
-            }
+        // Auto-resolve owner and sudo LIDs on startup
+        const ownerNumbers = [config.OWNER_NUMBER, ...(config.SUDO || [])];
+        await getOwnerLids(sock, ownerNumbers);
+        console.log(`[LID RESOLVER] Cached Owner LIDs:`, Array.from(ownerLidCache));
+
+        // Always update the scheduler's socket reference to the fresh 'sock'
+        updateSchedulerSocket(sock);
+
+        // Start cron job only once on initial boot
+        if (!isSchedulerRunning) {
+            startQuoteScheduler(sock);
+            isSchedulerRunning = true;
         }
+    }
 
-        if (connection === "close") {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
+    if (connection === "close") {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
 
-            if (shouldReconnect) {
-                setTimeout(() => startBot(), 3000);
-            } else {
-                isSchedulerRunning = false;
-                console.log("⚠️ Session logged out permanently. Delete the /session folder or clear SESSION_ID to pair again.");
-            }
+        if (shouldReconnect) {
+            setTimeout(() => startBot(), 3000);
+        } else {
+            isSchedulerRunning = false;
+            console.log("⚠️ Session logged out permanently.");
         }
-    });
+    }
+});
 
 
     // ======================
@@ -258,49 +294,122 @@ async function startBot() {
         }
     });
 
+
     // ================================================================
-    // UNIFIED MESSAGE HANDLER
+    // GROUP PARTICIPANTS UPDATES (WELCOME & GOODBYE HANDLER)
     // ================================================================
-    // UNIFIED MESSAGE HANDLER
-    // ================================================================
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    sock.ev.on('group-participants.update', async (update) => {
         try {
-            if (type !== "notify") return;
-            if (!messages || !Array.isArray(messages) || messages.length === 0) return;
+            const { id, participants, action } = update;
 
-            const m = messages[0];
-            if (!m || !m.message) return;
-
-            const from = m.key.remoteJid;
-            const isGroup = from.endsWith('@g.us');
-
-            // ========================================================
-            // 1. EXTRACT SENDER & UNIFIED OWNER CHECK FIRST
-            // ========================================================
-            const sender = m.sender || (isGroup ? m.key.participant : from) || "";
-            const cleanSenderNumber = sender.replace(/[^0-9]/g, "");
-            const isFromMe = m.key.fromMe;
-
-            // Get owner list from config or global
-            const rawOwners = (typeof config !== "undefined" && config.OWNERS)
-                ? config.OWNERS
-                : (global.OWNERS || []);
-
-            const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
-            if (typeof config !== "undefined" && config.OWNER_NUMBER) {
-                cleanedOwners.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ""));
+            // WELCOME EVENT
+            if (action === 'add' && global.welcomeSettings && global.welcomeSettings[id]) {
+                for (const user of participants) {
+                    await sock.sendMessage(id, {
+                        text: `✨ Welcome @${user.split('@')[0]} to the group! We're glad to have you here. 🎉`,
+                        mentions: [user]
+                    });
+                }
             }
 
-            // Define isOwner ONCE right here (handles array, single number, self, and LID)
-            const isOwner = isFromMe || cleanedOwners.includes(cleanSenderNumber) || sender.includes("100399675609189");
-
-            // ========================================================
-            // 2. 🔒 PUBLIC / PRIVATE MODE GUARD
-            // ========================================================
-            if (config.MODE === "private" && !isOwner) {
-                return; // Stop processing immediately for non-owners in private mode
+            // GOODBYE EVENT
+            if (action === 'remove' && global.goodbyeSettings && global.goodbyeSettings[id]) {
+                for (const user of participants) {
+                    await sock.sendMessage(id, {
+                        text: `👋 Goodbye @${user.split('@')[0]}. Sad to see you go!`,
+                        mentions: [user]
+                    });
+                }
             }
+        } catch (err) {
+            console.error("Group Participants Update Error:", err);
+        }
+    });
 
+
+    // ================================================================
+// UNIFIED MESSAGE HANDLER
+// ================================================================
+sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    try {
+        if (type !== "notify") return;
+        if (!messages || !Array.isArray(messages) || messages.length === 0) return;
+
+        const m = messages[0];
+        if (!m || !m.message) return;
+
+        const from = m.key.remoteJid;
+        const isGroup = from.endsWith('@g.us');
+
+        // ========================================================
+        // 1. EXTRACT SENDER & UNIFIED OWNER CHECK FIRST
+        // ========================================================
+        const rawSender = m.sender || (isGroup ? m.key.participant : from) || "";
+        const cleanSenderNumber = rawSender.split('@')[0].split(':')[0].replace(/[^0-9]/g, "");
+        const isFromMe = m.key.fromMe;
+
+        // Get owner numbers from config / env
+        const rawOwners = (typeof config !== "undefined" && config.OWNERS)
+            ? config.OWNERS
+            : (global.OWNERS || []);
+
+        const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
+        if (typeof config !== "undefined" && config.OWNER_NUMBER) {
+            cleanedOwners.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ""));
+        }
+        if (typeof config !== "undefined" && Array.isArray(config.SUDO)) {
+            config.SUDO.forEach(num => cleanedOwners.push(String(num).replace(/[^0-9]/g, "")));
+        }
+
+        // 1. Load your dynamic sudo list from ./lib/sudo.json
+        const sudoDB = loadJSON("./lib/sudo.json", []);
+
+        // 2. DYNAMIC ZERO-CONFIG OWNER CHECK
+        const isOwner =
+            isFromMe === true ||
+            cleanedOwners.includes(cleanSenderNumber) ||
+            sudoDB.includes(cleanSenderNumber) ||
+            (typeof ownerLidCache !== "undefined" && ownerLidCache.has(cleanSenderNumber));
+
+            // ========================================================
+        // ========================================================
+        // 2. YTS SEARCH INTERACTIVE REPLIES
+        // ========================================================
+        const body = (m.message?.conversation || m.message?.extendedTextMessage?.text || "").trim();
+        const quotedStanzaId = m.message?.extendedTextMessage?.contextInfo?.stanzaId;
+
+        if (quotedStanzaId && global.ytsSessions && global.ytsSessions.has(quotedStanzaId)) {
+            console.log(`[YTS Reply Detected] Replying to stanza ID: ${quotedStanzaId} with text: "${body}"`);
+            
+            const selectionNum = parseInt(body);
+
+            if (!isNaN(selectionNum) && selectionNum > 0) {
+                const session = global.ytsSessions.get(quotedStanzaId);
+
+                if (selectionNum <= session.videos.length) {
+                    // Remove session so it can't be triggered twice
+                    global.ytsSessions.delete(quotedStanzaId);
+
+                    // Call handler from loaded commands or require
+                    const ytsModule = require('./commands/downloaders/yts'); // Adjust relative path if needed
+                    await ytsModule.handleYtsReply(sock, m, session, selectionNum - 1);
+                    return; // Stop execution here
+                } else {
+                    await sock.sendMessage(from, { text: `❌ Invalid choice. Please select a number between 1 and ${session.videos.length}.` }, { quoted: m });
+                    return;
+                }
+            }
+        }
+
+        // ========================================================
+        // 2. 🔒 PUBLIC / PRIVATE MODE GUARD (PERSISTENT)
+        // ========================================================
+        const modeDB = loadJSON("./lib/mode.json", { mode: "public" });
+        const currentMode = modeDB.mode || (typeof config !== "undefined" ? config.MODE : "public");
+
+        if (currentMode === "private" && !isOwner) {
+            return; // Stop processing immediately for non-owners in private mode
+        }
             // ========================================================
             // 3. 🔥 AUTOMATED ANTIPORN FILTER (IMAGES, VIDEOS, STICKERS)
             // ========================================================
@@ -341,7 +450,7 @@ async function startBot() {
                     const originalMsg = session.message;
 
                     try {
-                        const videoCommand = require("./commands/videodl.js");
+                        const videoCommand = require("./commands/Downloaders/videodl.js");
                         await videoCommand.execute(sock, originalMsg, originalArgs, {
                             isDocumentMode,
                             bypassMenuCreation: true
@@ -364,9 +473,6 @@ async function startBot() {
                 return;
             }
 
-            // ========================================================
-            // 🔄 INTERACTIVE TEXT MENU SELECTION GATE
-            // ========================================================
             // ========================================================
             // 🔄 FIXED ROUTER: Routes to song.js or videodl.js
             // ========================================================
@@ -406,9 +512,9 @@ async function startBot() {
                     return;
                 }
             }
-            // ------------------------------------------
-            // ANTIDELETE INTERCEPTION INTERFACE
-            // ------------------------------------------
+            // ========================================================
+            // 7. ANTIDELETE INTERCEPTION INTERFACE
+            // ========================================================
             const protocolType = m.message?.protocolMessage?.type;
             if (protocolType === 0) {
                 const antiDeleteDB = loadJSON("./lib/antidelete.json");
@@ -418,12 +524,17 @@ async function startBot() {
 
                     if (historicalData) {
                         const rawSender = historicalData.sender.split("@")[0];
-                        await sock.sendMessage(
-                            global.OWNERS[0] + "@s.whatsapp.net",
-                            {
-                                text: `🚫 DELETED MESSAGE\n\n👤 User: ${rawSender}\n💬 Message: ${historicalData.text}\n🏷 Chat: ${from}`
-                            }
-                        );
+                        const primaryOwnerNum = (config.OWNER_NUMBER || (global.OWNERS && global.OWNERS[0]) || "").replace(/[^0-9]/g, "");
+
+                        if (primaryOwnerNum) {
+                            await sock.sendMessage(
+                                primaryOwnerNum + "@s.whatsapp.net",
+                                {
+                                    text: `🚫 *DELETED MESSAGE DETECTED*\n\n👤 *User:* @${rawSender}\n💬 *Message:* ${historicalData.text}\n🏷 *Chat:* ${from}`,
+                                    mentions: [historicalData.sender]
+                                }
+                            ).catch(() => null);
+                        }
                     }
                 }
                 return;
@@ -431,12 +542,12 @@ async function startBot() {
 
             // Save to temporary memory log for antidelete fallback monitoring
             if (messageType === "conversation" || messageType === "extendedTextMessage") {
-                deletedMessages[m.key.id] = { text, sender };
+                deletedMessages[m.key.id] = { text, sender: rawSender };
             }
 
-            // ------------------------------------------
-            // BANNED USER CHECK
-            // ------------------------------------------
+            // ========================================================
+            // 8. BANNED USER CHECK
+            // ========================================================
             const bannedDB = loadJSON("./lib/banned.json");
             if (isCommand && bannedDB[cleanSenderNumber]) {
                 await sock.sendMessage(from, {
@@ -444,12 +555,9 @@ async function startBot() {
                 }, { quoted: m });
                 return;
             }
-            // ------------------------------------------
-            // KEYWORD FLAG SYSTEM
-
 
             // ========================================================
-            // 🛡️ UNIFIED ANTI-SPAM & LINK PROTECTION SYSTEM
+            // 9. 🛡️ UNIFIED ANTI-SPAM & LINK PROTECTION SYSTEM
             // ========================================================
             if (isGroup) {
                 const configPath = './lib/antispam_config.json';
@@ -471,11 +579,11 @@ async function startBot() {
                             const senderObject = members.find(p => p.id.includes(cleanSenderNumber));
                             const senderIsAdmin = senderObject?.admin === "admin" || senderObject?.admin === "superadmin";
 
-                            if (!senderIsAdmin) {
+                            if (!senderIsAdmin && !isOwner) {
                                 await sock.sendMessage(from, { delete: m.key }).catch(() => null);
                                 await sock.sendMessage(from, {
                                     text: `❌ *Link Protection:* @${cleanSenderNumber}, links are not allowed here!`,
-                                    mentions: [sender]
+                                    mentions: [rawSender]
                                 }).catch(() => null);
                                 return;
                             }
@@ -489,18 +597,16 @@ async function startBot() {
 
                     let timestamps = global.spamTrackingMap.get(userKey);
 
-                    // Filter out timestamps older than 5 seconds (5000ms)
+                    // Filter out timestamps older than 5 seconds
                     timestamps = timestamps.filter(time => currentTime - time < 5000);
-
-                    // Add current message timestamp
                     timestamps.push(currentTime);
                     global.spamTrackingMap.set(userKey, timestamps);
 
-                    // If user sends more than 4 messages within 5 seconds, flag as spam
-                    if (timestamps.length > 4) {
+                    // If user sends more than 4 messages within 5 seconds
+                    if (timestamps.length > 4 && !isOwner) {
                         const groupData = await sock.groupMetadata(from).catch(() => null);
                         const members = groupData?.participants || [];
-                        const botIdClean = sock.user.id.split("@")[0].split(":")[0];
+                        const botIdClean = sock.user?.id?.split("@")[0]?.split(":")[0] || "";
 
                         const botObject = members.find(p => p.id.includes(botIdClean));
                         const targetObject = members.find(p => p.id.includes(cleanSenderNumber));
@@ -508,66 +614,92 @@ async function startBot() {
                         const botIsAdmin = botObject?.admin === "admin" || botObject?.admin === "superadmin";
                         const targetIsAdmin = targetObject?.admin === "admin" || targetObject?.admin === "superadmin";
 
-                        // Instantly delete the spam payload
+                        // Instantly delete spam message
                         await sock.sendMessage(from, { delete: m.key }).catch(() => null);
 
                         if (timestamps.length === 5) {
                             await sock.sendMessage(from, {
-                                text: `⚠️ *Anti-Spam:* @${cleanSenderNumber}, Nigga, you are sending messages too fast! Slow down or i will kick your ass.`,
-                                mentions: [sender]
+                                text: `⚠️ *Anti-Spam:* @${cleanSenderNumber}, you are sending messages too fast! Slow down.`,
+                                mentions: [rawSender]
                             }).catch(() => null);
                         }
 
                         if (timestamps.length >= 7) {
                             if (!targetIsAdmin && botIsAdmin) {
                                 await sock.sendMessage(from, {
-                                    text: `⚡ *Anti-Spam:* @${cleanSenderNumber} has been kicked for spamming, they are gay!`,
-                                    mentions: [sender]
-                                });
-                                await sock.groupParticipantsUpdate(from, [sender], "remove").catch(() => null);
+                                    text: `⚡ *Anti-Spam:* @${cleanSenderNumber} has been kicked for spamming.`,
+                                    mentions: [rawSender]
+                                }).catch(() => null);
+                                await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => null);
                                 global.spamTrackingMap.delete(userKey);
                                 return;
                             }
                         }
-                        return; // Halt logic execution pipeline for this message event
+                        return;
                     }
                 }
             }
 
-            // ------------------------------------------
-            // COMMAND HANDLER
-            // ------------------------------------------
+            // ========================================================
+            // 10. COMMAND HANDLER & RECURSIVE DISPATCH
+            // ========================================================
             if (isCommand) {
+                const prefix = global.PREFIX || config.PREFIX || "!";
                 const parts = text.split(/\s+/);
-                const cmd = parts[0].slice(PREFIX.length).toLowerCase();
+                const cmd = parts[0].slice(prefix.length).toLowerCase();
                 const args = parts.slice(1);
 
-                const commandsPath = "./commands";
-                if (fs.existsSync(commandsPath)) {
-                    const files = fs.readdirSync(commandsPath);
+                const commandsPath = path.join(__dirname, "commands");
+
+                console.log(`[COMMAND RUN] Cmd: .${cmd} | Sender: ${cleanSenderNumber} | IsOwner: ${isOwner}`);
+
+                // Recursive function to search files inside subfolders (Ai, General, Owner, etc.)
+                const findAndExecuteCommand = async (dir) => {
+                    if (!fs.existsSync(dir)) return false;
+                    const files = fs.readdirSync(dir);
 
                     for (const file of files) {
-                        if (file.endsWith(".js")) {
-                            try {
-                                const filePath = `${commandsPath}/${file}`;
-                                delete require.cache[require.resolve(filePath)];
-                                const cmdFile = require(filePath);
+                        const fullPath = path.join(dir, file);
+                        const stat = fs.statSync(fullPath);
 
-                                if (cmdFile.name === cmd || (cmdFile.aliases && cmdFile.aliases.includes(cmd))) {
-                                    await cmdFile.execute(sock, m, args);
-                                    return;
+                        if (stat.isDirectory()) {
+                            const executed = await findAndExecuteCommand(fullPath);
+                            if (executed) return true;
+                        } else if (file.endsWith(".js")) {
+                            try {
+                                delete require.cache[require.resolve(fullPath)];
+                                const cmdFile = require(fullPath);
+
+                                if (
+                                    cmdFile.name === cmd ||
+                                    (cmdFile.aliases && cmdFile.aliases.includes(cmd))
+                                ) {
+                                    // 🔒 OWNER GUARD CHECK
+                                    if (cmdFile.category === "owner" && !isOwner) {
+                                        await sock.sendMessage(from, {
+                                            text: `❌ *Access Denied:* This command is restricted to the bot owner.\n\n*Your ID:* \`${cleanSenderNumber}\``
+                                        }, { quoted: m });
+                                        return true; // Stop execution, command blocked
+                                    }
+
+                                    // Execute command
+                                    await cmdFile.execute(sock, m, args, { isOwner });
+                                    return true; // Stop searching once executed
                                 }
                             } catch (cmdErr) {
                                 console.error(`Error executing command ${file}:`, cmdErr);
                             }
                         }
                     }
-                }
+                    return false;
+                };
+
+                await findAndExecuteCommand(commandsPath);
             }
 
-            // ------------------------------------------
-            // ANTIBADWORDS & ADDITIONAL SECURITY LOGIC
-            // ------------------------------------------
+            // ========================================================
+            // 11. ANTIBADWORDS & ADDITIONAL SECURITY LOGIC
+            // ========================================================
             if (isGroup && !isOwner) {
                 const antibadDB = loadJSON("./lib/antibadwords.json");
                 const badwords = loadJSON("./lib/badwords.json", []);
@@ -578,11 +710,11 @@ async function startBot() {
                         await sock.sendMessage(from, { delete: m.key }).catch(() => null);
 
                         antibadDB[from].warns = antibadDB[from].warns || {};
-                        antibadDB[from].warns[sender] = (antibadDB[from].warns[sender] || 0) + 1;
+                        antibadDB[from].warns[rawSender] = (antibadDB[from].warns[rawSender] || 0) + 1;
 
                         await sock.sendMessage(from, {
-                            text: `⚠️ Bad word detected!\nWarn: ${antibadDB[from].warns[sender]}`,
-                            mentions: [sender]
+                            text: `⚠️ Bad word detected!\nWarn: ${antibadDB[from].warns[rawSender]}`,
+                            mentions: [rawSender]
                         }, { quoted: m });
 
                         saveJSON("./lib/antibadwords.json", antibadDB);
@@ -591,14 +723,36 @@ async function startBot() {
                 }
             }
 
-            // ------------------------------------------
         } catch (err) {
             console.error("🚨 CRITICAL LOOP ERROR:", err);
         }
     });
+}
 
+// Global LID cache to store resolved WhatsApp LIDs across events
+
+/**
+ * Resolves phone numbers to WhatsApp LIDs automatically on bot startup
+ */
+async function getOwnerLids(sock, phoneNumbers = []) {
+    for (const num of phoneNumbers) {
+        const cleanNum = String(num).replace(/[^0-9]/g, "");
+        if (!cleanNum) continue;
+
+        const phoneJid = `${cleanNum}@s.whatsapp.net`;
+        try {
+            const [result] = await sock.onWhatsApp(phoneJid);
+            if (result && result.lid) {
+                const lidNum = result.lid.split('@')[0].split(':')[0];
+                ownerLidCache.add(lidNum);
+                console.log(`[LID RESOLVER] Successfully cached LID for ${cleanNum}: ${lidNum}`);
+            }
+        } catch (err) {
+            console.error(`[LID RESOLVER] Failed to resolve LID for ${cleanNum}:`, err.message);
+        }
+    }
 }
 
 // Initialize background maintenance & launch
 startAutoCleaner(60);
-startBot();
+startBot();        

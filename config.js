@@ -9,7 +9,7 @@ module.exports = {
     BOT_NUMBER: process.env.BOT_NUMBER || "2347077445628",
     PREFIX: process.env.PREFIX || ".",
     MODE: process.env.MODE || "public", // 'public' or 'private'
-    ANTICALL: process.env.ANTICALL === "true" || false, // Default: false
+    ANTICALL: process.env.ANTICALL === "true" || false,
 
     // -------------------------------------------------------------
     // 2. SESSION & AUTH
@@ -24,23 +24,17 @@ module.exports = {
     SIGHTENGINE_SECRET: process.env.SIGHTENGINE_SECRET || "",
 
     // -------------------------------------------------------------
-    // 4. OWNER DETAILS
+    // 4. OWNER & SUDO ACCESS
     // -------------------------------------------------------------
     OWNER_NAME: process.env.OWNER_NAME || "Rise",
+
+    // Primary Owner Number
     OWNER_NUMBER: process.env.OWNER_NUMBER || "2348058068041",
 
-    // Access Lists (reads comma-separated values from environment variables or uses defaults)
-    OWNERS: process.env.OWNERS
-        ? process.env.OWNERS.split(",")
-        : ["2348058068041", "2348115336615", "100399675609189"],
-
-    OWNER: process.env.OWNER
-        ? process.env.OWNER.split(",")
-        : ["2348058068041", "2348115336615"],
-
-    MODS: process.env.MODS
-        ? process.env.MODS.split(",")
-        : ["2349130961572"],
+    // Sudo/Moderator List (Reads comma-separated numbers from .env or defaults)
+    SUDO: process.env.SUDO
+        ? process.env.SUDO.split(",").map(num => num.trim())
+        : ["2348058068041", "2348115336615", "2349130961572"],
 
     // -------------------------------------------------------------
     // 5. SOCIAL LINKS

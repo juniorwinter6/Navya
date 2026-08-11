@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');
 
-// Expanded quotes array with 220+ curated quotes
+// Expanded quotes array
 const quotes = [
     // --- WISDOM & LIFE ---
     "“The purpose of our lives is to be happy.” — Dalai Lama",
@@ -13,7 +14,6 @@ const quotes = [
     "“May you live all the days of your life.” — Jonathan Swift",
     "“Life itself is the most wonderful fairy tale.” — Hans Christian Andersen",
     "“Do not dwell in the past, do not dream of the future, concentrate the mind on the present moment.” — Buddha",
-    "“Life is a long lesson in humility.” — James M. Barrie",
     "“The unexamined life is not worth living.” — Socrates",
     "“Turn your wounds into wisdom.” — Oprah Winfrey",
     "“The way I see it, if you want the rainbow, you gotta put up with the rain.” — Dolly Parton",
@@ -214,62 +214,122 @@ const quotes = [
     "“What you do speaks so loudly that I cannot hear what you say.” — Ralph Waldo Emerson"
 ];
 
+let activeSock = null;
+let isSchedulerRunning = false;
+
 /**
- * Starts the daily quotes scheduler (runs every 24 hours)
- * @param {import('@whiskeysockets/baileys').WASocket} sock - Your Baileys socket instance
+ * Updates active socket reference whenever Baileys reconnects.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock
  */
-function startQuoteScheduler(sock) {
+function updateSchedulerSocket(sock) {
+    activeSock = sock;
+}
 
-    // 24 hours in milliseconds (1000ms * 60s * 60m * 24h = 86,400,000 ms)
-    const TWENTY_FOUR_HOURS = 1000 * 60 * 60 * 24;
+/**
+ * Dynamically picks a random menu image (menu1, menu2, menu3, etc.) from the assets folder.
+ * @returns {Buffer|null}
+ */
+function getRandomMenuImage() {
+    try {
+        const assetsDir = path.join(__dirname, '..', 'assets');
+        if (!fs.existsSync(assetsDir)) return null;
 
-    console.log("⏰ Daily quotes scheduler has been successfully initialized (24-hour interval).");
+        const files = fs.readdirSync(assetsDir);
+        // Matches menu.jpg, menu1.jpg, menu_2.png, menu3.jpeg, etc.
+        const menuImages = files.filter(file => /^menu.*\.(jpg|jpeg|png)$/i.test(file));
 
-    setInterval(async () => {
-        try {
-            // 1. Fetch all groups from Baileys socket memory
-            const response = await sock.groupFetchAllParticipating();
-            const groupJids = Object.keys(response);
+        if (menuImages.length === 0) return null;
 
-            if (groupJids.length === 0) {
-                console.log("📢 Quote Scheduler: Bot is not in any groups yet.");
-                return;
-            }
+        const selectedFile = menuImages[Math.floor(Math.random() * menuImages.length)];
+        console.log(`🖼️ Quote Scheduler: Selected image "${selectedFile}"`);
 
-            // 2. Pick a random quote
-            const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-            const messageBody = `✨ *QUOTE OF THE DAY* ✨\n\n${randomQuote}\n\n\n*© Rise*`;
+        return fs.readFileSync(path.join(assetsDir, selectedFile));
+    } catch (error) {
+        console.error("❌ Quote Scheduler: Error reading assets directory:", error.message);
+        return null;
+    }
+}
 
-            // Path to your menu image inside assets folder
-            const imagePath = path.join(__dirname, '..', 'assets', 'menu.jpg');
-            const hasImage = fs.existsSync(imagePath);
+/**
+ * Broadcasts a random quote to all participating groups.
+ * @param {import('@whiskeysockets/baileys').WASocket} [sock]
+ */
+async function sendDailyQuote(sock) {
+    const targetSock = sock || activeSock;
 
-            // Optimization: Read image buffer once before looping through groups
-            const imageBuffer = hasImage ? fs.readFileSync(imagePath) : null;
+    if (!targetSock) {
+        console.log("❌ Quote Scheduler: No active socket connection available.");
+        return;
+    }
 
-            // 3. Broadcast to all participating groups with anti-ban delay
-            for (const groupJid of groupJids) {
+    try {
+        console.log("📢 Quote Scheduler: Preparing daily quote broadcast...");
+
+        // 1. Fetch participating groups safely
+        const response = await targetSock.groupFetchAllParticipating();
+        const groupJids = Object.keys(response);
+
+        if (!groupJids || groupJids.length === 0) {
+            console.log("📢 Quote Scheduler: Bot is not in any groups yet.");
+            return;
+        }
+
+        // 2. Pick a random quote
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        const messageBody = `✨ *QUOTE OF THE DAY* ✨\n\n${randomQuote}\n\n\n*© Rise*`;
+
+        // 3. Pick a random menu image from assets
+        const imageBuffer = getRandomMenuImage();
+
+        // 4. Broadcast to each group with safe anti-ban delay
+        for (const groupJid of groupJids) {
+            try {
                 if (imageBuffer) {
-                    await sock.sendMessage(groupJid, {
+                    await targetSock.sendMessage(groupJid, {
                         image: imageBuffer,
                         caption: messageBody
                     });
                 } else {
-                    // Fallback to text-only if image file is missing
-                    await sock.sendMessage(groupJid, { text: messageBody });
-                    console.warn(`⚠️ Warning: Image not found at path: ${imagePath}. Sent text-only message.`);
+                    await targetSock.sendMessage(groupJid, { text: messageBody });
                 }
-
-                // Anti-ban safety: 2-second breath between groups
-                await new Promise(resolve => setTimeout(resolve, 2000));
+            } catch (err) {
+                console.error(`❌ Failed to send quote to ${groupJid}:`, err.message);
             }
 
-            console.log(`✅ Daily quote successfully broadcasted to ${groupJids.length} group(s).`);
-
-        } catch (error) {
-            console.error("❌ Error in Quote Scheduler broadcast loop:", error);
+            // Anti-ban 2-second delay between groups
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
-    }, TWENTY_FOUR_HOURS);
+
+        console.log(`✅ Daily quote successfully sent to ${groupJids.length} group(s).`);
+
+    } catch (error) {
+        console.error("❌ Error running sendDailyQuote:", error);
+    }
 }
 
-module.exports = { startQuoteScheduler };
+/**
+ * Starts the daily quote scheduler (Runs every day at 08:00 AM)
+ * @param {import('@whiskeysockets/baileys').WASocket} sock
+ */
+function startQuoteScheduler(sock) {
+    if (sock) activeSock = sock;
+
+    if (isSchedulerRunning) {
+        console.log("⏰ Quote scheduler is already active.");
+        return;
+    }
+
+    isSchedulerRunning = true;
+    console.log("⏰ Daily quote scheduler initialized (Scheduled for 08:00 AM daily).");
+
+    // Cron syntax: '0 8 * * *' = Every day at 08:00 AM
+    cron.schedule('0 8 * * *', async () => {
+        await sendDailyQuote();
+    });
+}
+
+module.exports = { 
+    startQuoteScheduler, 
+    updateSchedulerSocket, 
+    sendDailyQuote 
+};
