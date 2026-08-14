@@ -357,17 +357,19 @@ async function startBot() {
 
 
     // ================================================================
-    // UNIFIED MESSAGE HANDLER
+    // UNIFIED MESSAGE HANDLER (Koyeb & Local Cross-Compatible)
     // ================================================================
     sock.ev.on("messages.upsert", async ({ messages, type }) => {
         try {
-            if (type !== "notify") return;
+            // Fix 1: Accept both 'notify' and 'append' (prevents dropping messages after a 440 reconnect)
+            if (type !== "notify" && type !== "append") return;
             if (!messages || !Array.isArray(messages) || messages.length === 0) return;
 
             const m = messages[0];
             if (!m || !m.message) return;
 
             const from = m.key.remoteJid;
+            if (!from) return;
             const isGroup = from.endsWith('@g.us');
 
             // ========================================================
@@ -377,7 +379,7 @@ async function startBot() {
             const cleanSenderNumber = rawSender.split('@')[0].split(':')[0].replace(/[^0-9]/g, "");
             const isFromMe = m.key.fromMe;
 
-            // Get owner numbers from config / env
+            // Get owner numbers safely from config / global / env
             const rawOwners = (typeof config !== "undefined" && config.OWNERS)
                 ? config.OWNERS
                 : (global.OWNERS || []);
@@ -390,15 +392,26 @@ async function startBot() {
                 config.SUDO.forEach(num => cleanedOwners.push(String(num).replace(/[^0-9]/g, "")));
             }
 
-            // 1. Load your dynamic sudo list from ./lib/sudo.json
-            const sudoDB = loadJSON("./lib/sudo.json", []);
+            // Fix 2: Absolute path for Linux/Koyeb file loading
+            const path = require('path');
+            const sudoPath = path.join(process.cwd(), "lib", "sudo.json");
+            const sudoDB = loadJSON(sudoPath, []);
+
+            // Fix 3: Proper LID vs Phone Number check
+            const isLidOwner = typeof ownerLidCache !== "undefined" && (
+                ownerLidCache.has(cleanSenderNumber) ||
+                Array.from(ownerLidCache.values()).includes(cleanSenderNumber)
+            );
 
             // 2. DYNAMIC ZERO-CONFIG OWNER CHECK
             const isOwner =
                 isFromMe === true ||
                 cleanedOwners.includes(cleanSenderNumber) ||
                 sudoDB.includes(cleanSenderNumber) ||
-                (typeof ownerLidCache !== "undefined" && ownerLidCache.has(cleanSenderNumber));
+                isLidOwner;
+
+            // Debug log to confirm message arrival on Koyeb
+            // console.log(`📩 [MSG] From: ${cleanSenderNumber} | IsOwner: ${isOwner}`);
 
             // ========================================================
             // ========================================================
