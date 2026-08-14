@@ -75,7 +75,7 @@ nano .env
 * Fork this repository to your GitHub account.
 * Click the button below to launch automated setup:
 
-  [![Deploy to Render](https://render.com/images/deploy-to-render.svg)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
+  [![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
 * On the Render setup screen, fill in your environment variables:
   * `BOT_NAME`
@@ -87,7 +87,7 @@ nano .env
 * Click **Apply** and wait for the build to complete.
 * Once running, open the **Logs** tab on your Render dashboard to grab your **8-digit pairing code** and link your WhatsApp!
 
-### 2. Koyeb Deployment
+#### 2. Koyeb Deployment
 
 Deploying **Navya** to Koyeb is fast and automated using our Web Deployer!
 
