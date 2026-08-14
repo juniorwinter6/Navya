@@ -71,8 +71,6 @@ nano .env
 
 ### Method B: Cloud & Panel Deployment
 
-### ☁️ Cloud Deployment Options
-
 #### 1. Render Deployment
 No forking required! Click the button below to launch automated setup directly on Render:
 
