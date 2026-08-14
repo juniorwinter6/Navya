@@ -71,34 +71,38 @@ nano .env
 
 ### Method B: Cloud & Panel Deployment
 
-#### 1. Render (One-Click Cloud Deployment)
-* Fork this repository to your GitHub account.
-* Click the button below to launch automated setup:
+### ☁️ Cloud Deployment Options
 
-  [![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
+#### 1. Render Deployment
+No forking required! Click the button below to launch automated setup directly on Render:
 
-* On the Render setup screen, fill in your environment variables:
-  * `BOT_NAME`
-  * `BOT_NUMBER`
-  * `OWNER_NUMBER`
-  * `GEMINI_API_KEY`
-  * `SIGHTENGINE_USER`
-  * `SIGHTENGINE_SECRET`
-* Click **Apply** and wait for the build to complete.
-* Once running, open the **Logs** tab on your Render dashboard to grab your **8-digit pairing code** and link your WhatsApp!
+[![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
+
+1. Click the **Deploy to Render** button above.
+2. Fill in all required environment variables on the Render setup screen:
+   * `BOT_NAME`
+   * `OWNER_NAME`
+   * `BOT_NUMBER`
+   * `OWNER_NUMBER`
+   * `PREFIX`
+   * `GEMINI_API_KEY`
+   * `HF_KEY`
+   * `SIGHTENGINE_USER`
+   * `SIGHTENGINE_SECRET`
+3. Click **Apply** and wait for the build to complete.
+4. Once running, check the **Logs** tab on your Render dashboard to retrieve your **8-digit pairing code**!
+
+---
 
 #### 2. Koyeb Deployment
+Deploying to Koyeb is fast and automated using our custom Web Form helper!
 
-Deploying **Navya** to Koyeb is fast and automated using our Web Deployer!
+[![Deploy to Koyeb](https://img.shields.io/badge/Deploy%20to-Koyeb-10B981?style=for-the-badge&logo=koyeb&logoColor=white)](https://jovial-treacle-c8cd59.netlify.app/)
 
-1. **Fork this repository** to your personal GitHub account first.
-2. Click the **Deploy to Koyeb** button below to open the setup form:
-
-   [![Deploy to Koyeb](https://img.shields.io/badge/Deploy%20to-Koyeb-10B981?style=for-the-badge&logo=koyeb&logoColor=white)](https://jovial-treacle-c8cd59.netlify.app/)
-
-3. Enter your **GitHub Username** and fill in your environment variables (`BOT_NAME`, `GEMINI_API_KEY`, `OWNER_NUMBER`, etc.).
-4. Click **🚀 Deploy to Koyeb**—the site will open Koyeb with all your variables pre-configured.
-5. Confirm deployment on Koyeb, then head to your app's **Runtime Logs** to grab your 8-digit WhatsApp pairing code!
+1. Click the **Deploy to Koyeb** button above to open the setup helper.
+2. Fill in your bot credentials (`BOT_NAME`, `OWNER_NAME`, `GEMINI_API_KEY`, etc.).
+3. Click **🚀 Deploy to Koyeb**—the site will automatically open Koyeb with all your configuration pre-filled.
+4. Confirm deployment on Koyeb, then check the **Runtime Logs** tab to grab your **8-digit pairing code**!
 
 #### 3. Katabump / Web Panels
 * Upload the repository zip or pull directly from Git inside your panel file manager.
