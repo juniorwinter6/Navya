@@ -1,7 +1,36 @@
+// ==========================================
+// AUTO-INSTALL DEPENDENCIES & BINARIES ON HOST
+// ==========================================
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
+
+const nodeModulesPath = path.join(__dirname, "node_modules");
+const ffmpegBinaryPath = process.platform === "win32"
+    ? path.join(nodeModulesPath, "ffmpeg-static", "ffmpeg.exe")
+    : path.join(nodeModulesPath, "ffmpeg-static", "ffmpeg");
+
+const needsModules = !fs.existsSync(nodeModulesPath) || !fs.existsSync(path.join(nodeModulesPath, "dotenv"));
+const needsFfmpeg = !fs.existsSync(ffmpegBinaryPath);
+
+if (needsModules || needsFfmpeg) {
+    console.log("📦 Missing node_modules or FFmpeg binary detected. Initializing installation...");
+    try {
+        // Runs npm install to fetch everything in package.json and rebuild binary targets
+        execSync("npm install --force", { stdio: "inherit", cwd: __dirname });
+        console.log("✅ All dependencies & binaries installed successfully!");
+    } catch (err) {
+        console.error("❌ Failed to auto-install dependencies:", err.message);
+    }
+}
+// ==========================================
+// YOUR EXISTING index.js CODE STARTS BELOW
+// ==========================================
+
 require("dotenv").config(); // Loaded at the very top so process.env is ready
 
-const path = require('path');
-const fs = require("fs-extra");
+//const path = require('path');
+//const fs = require("fs-extra");
 const express = require("express");
 const pino = require("pino");
 const QRCode = require("qrcode-terminal");
@@ -23,7 +52,7 @@ const { startAutoCleaner } = require('./utils/autoCleaner');
 //const pairRouter = require("./server");
 const config = require('./config');
 
-const ytsCmd = require('./commands/downloaders/yts'); // Adjust this path if yts.js is in a different folder
+const ytsCmd = require('./commands/Downloaders/yts'); // Adjust this path if yts.js is in a different folder
 // Keep track of the scheduler state outside the connection listener
 let isSchedulerRunning = false;
 
@@ -216,40 +245,40 @@ async function startBot() {
     }
 
     const { startQuoteScheduler, updateSchedulerSocket } = require('./utils/quoteScheduler');
-sock.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
+    sock.ev.on("connection.update", async (update) => {
+        const { connection, lastDisconnect } = update;
 
-    if (connection === "open") {
-        console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
+        if (connection === "open") {
+            console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
 
-        // Auto-resolve owner and sudo LIDs on startup
-        const ownerNumbers = [config.OWNER_NUMBER, ...(config.SUDO || [])];
-        await getOwnerLids(sock, ownerNumbers);
-        console.log(`[LID RESOLVER] Cached Owner LIDs:`, Array.from(ownerLidCache));
+            // Auto-resolve owner and sudo LIDs on startup
+            const ownerNumbers = [config.OWNER_NUMBER, ...(config.SUDO || [])];
+            await getOwnerLids(sock, ownerNumbers);
+            console.log(`[LID RESOLVER] Cached Owner LIDs:`, Array.from(ownerLidCache));
 
-        // Always update the scheduler's socket reference to the fresh 'sock'
-        updateSchedulerSocket(sock);
+            // Always update the scheduler's socket reference to the fresh 'sock'
+            updateSchedulerSocket(sock);
 
-        // Start cron job only once on initial boot
-        if (!isSchedulerRunning) {
-            startQuoteScheduler(sock);
-            isSchedulerRunning = true;
+            // Start cron job only once on initial boot
+            if (!isSchedulerRunning) {
+                startQuoteScheduler(sock);
+                isSchedulerRunning = true;
+            }
         }
-    }
 
-    if (connection === "close") {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
+        if (connection === "close") {
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
 
-        if (shouldReconnect) {
-            setTimeout(() => startBot(), 3000);
-        } else {
-            isSchedulerRunning = false;
-            console.log("⚠️ Session logged out permanently.");
+            if (shouldReconnect) {
+                setTimeout(() => startBot(), 3000);
+            } else {
+                isSchedulerRunning = false;
+                console.log("⚠️ Session logged out permanently.");
+            }
         }
-    }
-});
+    });
 
 
     // ======================
@@ -328,88 +357,88 @@ sock.ev.on("connection.update", async (update) => {
 
 
     // ================================================================
-// UNIFIED MESSAGE HANDLER
-// ================================================================
-sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    try {
-        if (type !== "notify") return;
-        if (!messages || !Array.isArray(messages) || messages.length === 0) return;
+    // UNIFIED MESSAGE HANDLER
+    // ================================================================
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+        try {
+            if (type !== "notify") return;
+            if (!messages || !Array.isArray(messages) || messages.length === 0) return;
 
-        const m = messages[0];
-        if (!m || !m.message) return;
+            const m = messages[0];
+            if (!m || !m.message) return;
 
-        const from = m.key.remoteJid;
-        const isGroup = from.endsWith('@g.us');
-
-        // ========================================================
-        // 1. EXTRACT SENDER & UNIFIED OWNER CHECK FIRST
-        // ========================================================
-        const rawSender = m.sender || (isGroup ? m.key.participant : from) || "";
-        const cleanSenderNumber = rawSender.split('@')[0].split(':')[0].replace(/[^0-9]/g, "");
-        const isFromMe = m.key.fromMe;
-
-        // Get owner numbers from config / env
-        const rawOwners = (typeof config !== "undefined" && config.OWNERS)
-            ? config.OWNERS
-            : (global.OWNERS || []);
-
-        const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
-        if (typeof config !== "undefined" && config.OWNER_NUMBER) {
-            cleanedOwners.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ""));
-        }
-        if (typeof config !== "undefined" && Array.isArray(config.SUDO)) {
-            config.SUDO.forEach(num => cleanedOwners.push(String(num).replace(/[^0-9]/g, "")));
-        }
-
-        // 1. Load your dynamic sudo list from ./lib/sudo.json
-        const sudoDB = loadJSON("./lib/sudo.json", []);
-
-        // 2. DYNAMIC ZERO-CONFIG OWNER CHECK
-        const isOwner =
-            isFromMe === true ||
-            cleanedOwners.includes(cleanSenderNumber) ||
-            sudoDB.includes(cleanSenderNumber) ||
-            (typeof ownerLidCache !== "undefined" && ownerLidCache.has(cleanSenderNumber));
+            const from = m.key.remoteJid;
+            const isGroup = from.endsWith('@g.us');
 
             // ========================================================
-        // ========================================================
-        // 2. YTS SEARCH INTERACTIVE REPLIES
-        // ========================================================
-        const body = (m.message?.conversation || m.message?.extendedTextMessage?.text || "").trim();
-        const quotedStanzaId = m.message?.extendedTextMessage?.contextInfo?.stanzaId;
+            // 1. EXTRACT SENDER & UNIFIED OWNER CHECK FIRST
+            // ========================================================
+            const rawSender = m.sender || (isGroup ? m.key.participant : from) || "";
+            const cleanSenderNumber = rawSender.split('@')[0].split(':')[0].replace(/[^0-9]/g, "");
+            const isFromMe = m.key.fromMe;
 
-        if (quotedStanzaId && global.ytsSessions && global.ytsSessions.has(quotedStanzaId)) {
-            console.log(`[YTS Reply Detected] Replying to stanza ID: ${quotedStanzaId} with text: "${body}"`);
-            
-            const selectionNum = parseInt(body);
+            // Get owner numbers from config / env
+            const rawOwners = (typeof config !== "undefined" && config.OWNERS)
+                ? config.OWNERS
+                : (global.OWNERS || []);
 
-            if (!isNaN(selectionNum) && selectionNum > 0) {
-                const session = global.ytsSessions.get(quotedStanzaId);
+            const cleanedOwners = rawOwners.map(num => String(num).replace(/[^0-9]/g, ""));
+            if (typeof config !== "undefined" && config.OWNER_NUMBER) {
+                cleanedOwners.push(String(config.OWNER_NUMBER).replace(/[^0-9]/g, ""));
+            }
+            if (typeof config !== "undefined" && Array.isArray(config.SUDO)) {
+                config.SUDO.forEach(num => cleanedOwners.push(String(num).replace(/[^0-9]/g, "")));
+            }
 
-                if (selectionNum <= session.videos.length) {
-                    // Remove session so it can't be triggered twice
-                    global.ytsSessions.delete(quotedStanzaId);
+            // 1. Load your dynamic sudo list from ./lib/sudo.json
+            const sudoDB = loadJSON("./lib/sudo.json", []);
 
-                    // Call handler from loaded commands or require
-                    const ytsModule = require('./commands/downloaders/yts'); // Adjust relative path if needed
-                    await ytsModule.handleYtsReply(sock, m, session, selectionNum - 1);
-                    return; // Stop execution here
-                } else {
-                    await sock.sendMessage(from, { text: `❌ Invalid choice. Please select a number between 1 and ${session.videos.length}.` }, { quoted: m });
-                    return;
+            // 2. DYNAMIC ZERO-CONFIG OWNER CHECK
+            const isOwner =
+                isFromMe === true ||
+                cleanedOwners.includes(cleanSenderNumber) ||
+                sudoDB.includes(cleanSenderNumber) ||
+                (typeof ownerLidCache !== "undefined" && ownerLidCache.has(cleanSenderNumber));
+
+            // ========================================================
+            // ========================================================
+            // 2. YTS SEARCH INTERACTIVE REPLIES
+            // ========================================================
+            const body = (m.message?.conversation || m.message?.extendedTextMessage?.text || "").trim();
+            const quotedStanzaId = m.message?.extendedTextMessage?.contextInfo?.stanzaId;
+
+            if (quotedStanzaId && global.ytsSessions && global.ytsSessions.has(quotedStanzaId)) {
+                console.log(`[YTS Reply Detected] Replying to stanza ID: ${quotedStanzaId} with text: "${body}"`);
+
+                const selectionNum = parseInt(body);
+
+                if (!isNaN(selectionNum) && selectionNum > 0) {
+                    const session = global.ytsSessions.get(quotedStanzaId);
+
+                    if (selectionNum <= session.videos.length) {
+                        // Remove session so it can't be triggered twice
+                        global.ytsSessions.delete(quotedStanzaId);
+
+                        // Call handler from loaded commands or require
+                        const ytsModule = require('./commands/downloaders/yts'); // Adjust relative path if needed
+                        await ytsModule.handleYtsReply(sock, m, session, selectionNum - 1);
+                        return; // Stop execution here
+                    } else {
+                        await sock.sendMessage(from, { text: `❌ Invalid choice. Please select a number between 1 and ${session.videos.length}.` }, { quoted: m });
+                        return;
+                    }
                 }
             }
-        }
 
-        // ========================================================
-        // 2. 🔒 PUBLIC / PRIVATE MODE GUARD (PERSISTENT)
-        // ========================================================
-        const modeDB = loadJSON("./lib/mode.json", { mode: "public" });
-        const currentMode = modeDB.mode || (typeof config !== "undefined" ? config.MODE : "public");
+            // ========================================================
+            // 2. 🔒 PUBLIC / PRIVATE MODE GUARD (PERSISTENT)
+            // ========================================================
+            const modeDB = loadJSON("./lib/mode.json", { mode: "public" });
+            const currentMode = modeDB.mode || (typeof config !== "undefined" ? config.MODE : "public");
 
-        if (currentMode === "private" && !isOwner) {
-            return; // Stop processing immediately for non-owners in private mode
-        }
+            if (currentMode === "private" && !isOwner) {
+                return; // Stop processing immediately for non-owners in private mode
+            }
             // ========================================================
             // 3. 🔥 AUTOMATED ANTIPORN FILTER (IMAGES, VIDEOS, STICKERS)
             // ========================================================
@@ -641,62 +670,94 @@ sock.ev.on("messages.upsert", async ({ messages, type }) => {
             }
 
             // ========================================================
-            // 10. COMMAND HANDLER & RECURSIVE DISPATCH
+            // 10. COMMAND HANDLER (IN-MEMORY CACHED LOOKUP)
             // ========================================================
+
+            // 1. Map to store commands and aliases in RAM for ultra-fast lookup
+            global.commands = global.commands || new Map();
+            global.aliases = global.aliases || new Map();
+
+            // 2. One-time command loader function (Runs on startup or command dispatch)
+            const loadCommands = (dir = path.join(__dirname, "commands")) => {
+                if (!fs.existsSync(dir)) return;
+                const files = fs.readdirSync(dir);
+
+                for (const file of files) {
+                    const fullPath = path.join(dir, file);
+                    const stat = fs.statSync(fullPath);
+
+                    if (stat.isDirectory()) {
+                        loadCommands(fullPath); // Recursively enter subfolders
+                    } else if (file.toLowerCase().endsWith(".js")) {
+                        try {
+                            delete require.cache[require.resolve(fullPath)];
+                            const cmdFile = require(fullPath);
+
+                            if (cmdFile && cmdFile.name) {
+                                const nameLower = cmdFile.name.toLowerCase();
+                                global.commands.set(nameLower, cmdFile);
+
+                                // Register all aliases safely in lowercase
+                                if (Array.isArray(cmdFile.aliases)) {
+                                    cmdFile.aliases.forEach(alias => {
+                                        global.aliases.set(alias.toLowerCase(), nameLower);
+                                    });
+                                }
+                            }
+                        } catch (err) {
+                            console.error(`❌ [COMMAND LOAD ERROR] Failed to load ${file}:`, err.message);
+                        }
+                    }
+                }
+            };
+
+            // Ensure commands are loaded into memory
+            if (global.commands.size === 0) {
+                loadCommands();
+                console.log(`✅ Loaded ${global.commands.size} commands into memory.`);
+            }
+
+            // 3. DISPATCHER FOR INCOMING COMMANDS
             if (isCommand) {
                 const prefix = global.PREFIX || config.PREFIX || "!";
                 const parts = text.split(/\s+/);
-                const cmd = parts[0].slice(prefix.length).toLowerCase();
+                const cmdInput = parts[0].slice(prefix.length).toLowerCase();
                 const args = parts.slice(1);
 
-                const commandsPath = path.join(__dirname, "commands");
+                console.log(`[COMMAND RUN] Cmd: .${cmdInput} | Sender: ${cleanSenderNumber} | IsOwner: ${isOwner}`);
 
-                console.log(`[COMMAND RUN] Cmd: .${cmd} | Sender: ${cleanSenderNumber} | IsOwner: ${isOwner}`);
+                // Resolve command by direct name or alias lookup
+                const resolvedCmdName = global.commands.has(cmdInput)
+                    ? cmdInput
+                    : global.aliases.get(cmdInput);
 
-                // Recursive function to search files inside subfolders (Ai, General, Owner, etc.)
-                const findAndExecuteCommand = async (dir) => {
-                    if (!fs.existsSync(dir)) return false;
-                    const files = fs.readdirSync(dir);
+                const cmdFile = global.commands.get(resolvedCmdName);
 
-                    for (const file of files) {
-                        const fullPath = path.join(dir, file);
-                        const stat = fs.statSync(fullPath);
-
-                        if (stat.isDirectory()) {
-                            const executed = await findAndExecuteCommand(fullPath);
-                            if (executed) return true;
-                        } else if (file.endsWith(".js")) {
-                            try {
-                                delete require.cache[require.resolve(fullPath)];
-                                const cmdFile = require(fullPath);
-
-                                if (
-                                    cmdFile.name === cmd ||
-                                    (cmdFile.aliases && cmdFile.aliases.includes(cmd))
-                                ) {
-                                    // 🔒 OWNER GUARD CHECK
-                                    if (cmdFile.category === "owner" && !isOwner) {
-                                        await sock.sendMessage(from, {
-                                            text: `❌ *Access Denied:* This command is restricted to the bot owner.\n\n*Your ID:* \`${cleanSenderNumber}\``
-                                        }, { quoted: m });
-                                        return true; // Stop execution, command blocked
-                                    }
-
-                                    // Execute command
-                                    await cmdFile.execute(sock, m, args, { isOwner });
-                                    return true; // Stop searching once executed
-                                }
-                            } catch (cmdErr) {
-                                console.error(`Error executing command ${file}:`, cmdErr);
-                            }
+                if (cmdFile) {
+                    try {
+                        // 🔒 OWNER GUARD CHECK
+                        const isOwnerCategory = (cmdFile.category && cmdFile.category.toLowerCase() === "owner");
+                        if (isOwnerCategory && !isOwner) {
+                            await sock.sendMessage(from, {
+                                text: `❌ *Access Denied:* This command is restricted to the bot owner.\n\n*Your ID:* \`${cleanSenderNumber}\``
+                            }, { quoted: m });
+                            return;
                         }
+
+                        // Execute command smoothly across Katabump, Koyeb, and Local PC
+                        await cmdFile.execute(sock, m, args, { isOwner });
+
+                    } catch (cmdErr) {
+                        console.error(`❌ Error executing command [${cmdInput}]:`, cmdErr);
+                        await sock.sendMessage(from, {
+                            text: `❌ An error occurred executing .${cmdInput}: ${cmdErr.message || "Unknown error"}`
+                        }, { quoted: m });
                     }
-                    return false;
-                };
-
-                await findAndExecuteCommand(commandsPath);
+                } else {
+                    // Optional: Log if command wasn't found
+                    // console.log(`Command .${cmdInput} not found in memory.`);
+                }
             }
-
             // ========================================================
             // 11. ANTIBADWORDS & ADDITIONAL SECURITY LOGIC
             // ========================================================

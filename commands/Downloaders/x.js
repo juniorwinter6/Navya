@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 module.exports = {
-    name: "twitter",
-    aliases: ["x", "twdl"],
+    name: "x",
+    aliases: ["twitter", "twdl"],
     category: "downloader",
     execute: async (sock, m, args) => {
         const url = args[0];

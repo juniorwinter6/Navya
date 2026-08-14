@@ -322,14 +322,17 @@ function startQuoteScheduler(sock) {
     isSchedulerRunning = true;
     console.log("⏰ Daily quote scheduler initialized (Scheduled for 08:00 AM daily).");
 
-    // Cron syntax: '0 8 * * *' = Every day at 08:00 AM
+    // Cron syntax: '0 8 * * *' = Every day at 08:00 AM WAT (Nigerian Time)
     cron.schedule('0 8 * * *', async () => {
         await sendDailyQuote();
+    }, {
+        scheduled: true,
+        timezone: "Africa/Lagos"
     });
 }
 
-module.exports = { 
-    startQuoteScheduler, 
-    updateSchedulerSocket, 
-    sendDailyQuote 
+module.exports = {
+    startQuoteScheduler,
+    updateSchedulerSocket,
+    sendDailyQuote
 };

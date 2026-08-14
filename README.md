@@ -87,13 +87,18 @@ nano .env
 * Click **Apply** and wait for the build to complete.
 * Once running, open the **Logs** tab on your Render dashboard to grab your **8-digit pairing code** and link your WhatsApp!
 
-#### 2. Koyeb Deployment
-* Fork this repository to your GitHub account.
-* Log in to [Koyeb](https://app.koyeb.com/) and create a new Web Service.
-* Choose GitHub as your source and select your forked `Navya` repository.
-* In the **Environment Variables** section, add your keys (`BOT_NAME`, `BOT_NUMBER`, `OWNER_NUMBER`, `GEMINI_API_KEY`, `SIGHTENGINE_USER`, `SIGHTENGINE_SECRET`).
-* Set the run command to `npm start` and deploy.
-* Check the **Runtime Logs** to retrieve your 8-digit pairing code.
+### 2. Koyeb Deployment
+
+Deploying **Navya** to Koyeb is fast and automated using our Web Deployer!
+
+1. **Fork this repository** to your personal GitHub account first.
+2. Click the **Deploy to Koyeb** button below to open the setup form:
+
+   [![Deploy to Koyeb](https://img.shields.io/badge/Deploy%20to-Koyeb-10B981?style=for-the-badge&logo=koyeb&logoColor=white)](https://jovial-treacle-c8cd59.netlify.app/)
+
+3. Enter your **GitHub Username** and fill in your environment variables (`BOT_NAME`, `GEMINI_API_KEY`, `OWNER_NUMBER`, etc.).
+4. Click **🚀 Deploy to Koyeb**—the site will open Koyeb with all your variables pre-configured.
+5. Confirm deployment on Koyeb, then head to your app's **Runtime Logs** to grab your 8-digit WhatsApp pairing code!
 
 #### 3. Katabump / Web Panels
 * Upload the repository zip or pull directly from Git inside your panel file manager.

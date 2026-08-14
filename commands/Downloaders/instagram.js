@@ -1,16 +1,13 @@
-const { igdl } = require("ruhend-scraper")
-
-const config = require("../../config")
+const { igdl } = require("ruhend-scraper");
+const config = require("../../config");
 
 // ======================
 // PREVENT DUPLICATES
 // ======================
-const processedMessages = new Set()
+const processedMessages = new Set();
 
 module.exports = {
-
     name: "instagram",
-
     aliases: [
         "ig",
         "insta",
@@ -19,261 +16,168 @@ module.exports = {
     ],
 
     async execute(sock, m, args) {
-
         try {
-
-            const from =
-                m.key.remoteJid
+            const from = m.key.remoteJid;
 
             // ======================
             // DUPLICATE CHECK
             // ======================
-            if (
-                processedMessages.has(
-                    m.key.id
-                )
-            ) return
+            if (processedMessages.has(m.key.id)) return;
 
-            processedMessages.add(
-                m.key.id
-            )
+            processedMessages.add(m.key.id);
 
             setTimeout(() => {
+                processedMessages.delete(m.key.id);
+            }, 5 * 60 * 1000);
 
-                processedMessages.delete(
-                    m.key.id
-                )
+            const text = args.join(" ");
 
-            }, 5 * 60 * 1000)
-
-            const text =
-                args.join(" ")
+            // Fetch bot name with fallbacks
+            const botName = config.botName || config.BOT_NAME || "Navya";
+            const prefix = config.prefix || ".";
 
             // ======================
             // NO URL
             // ======================
             if (!text) {
-
                 return sock.sendMessage(
                     from,
                     {
-                        text:
-                            `📥 Instagram Downloader
-
-Usage:
-${config.prefix}ig <Instagram URL>
-
-Example:
-${config.prefix}ig https://www.instagram.com/reel/xxxx/`
+                        text: `📥 *Instagram Downloader*\n\n*Usage:*\n${prefix}ig <Instagram URL>\n\n*Example:*\n${prefix}ig https://www.instagram.com/reel/xxxx/`
                     },
                     { quoted: m }
-                )
+                );
             }
 
             // ======================
             // VALIDATE URL
             // ======================
             const instagramPatterns = [
-
                 /https?:\/\/(?:www\.)?instagram\.com\//,
-
                 /https?:\/\/(?:www\.)?instagr\.am\//
-            ]
+            ];
 
-            const isValidUrl =
-                instagramPatterns.some(
-                    pattern =>
-                        pattern.test(text)
-                )
+            const isValidUrl = instagramPatterns.some(pattern => pattern.test(text));
 
             if (!isValidUrl) {
-
                 return sock.sendMessage(
                     from,
-                    {
-                        text:
-                            "❌ Invalid Instagram URL."
-                    },
+                    { text: "❌ Invalid Instagram URL." },
                     { quoted: m }
-                )
+                );
             }
 
             // ======================
             // REACTION
             // ======================
-            await sock.sendMessage(
-                from,
-                {
-                    react: {
-                        text: "📥",
-                        key: m.key
-                    }
+            await sock.sendMessage(from, {
+                react: {
+                    text: "📥",
+                    key: m.key
                 }
-            )
+            });
 
             // ======================
             // DOWNLOAD
             // ======================
-            const downloadData =
-                await igdl(text)
+            const downloadData = await igdl(text);
 
-            console.log(
-                "IG RESPONSE:",
-                JSON.stringify(
-                    downloadData,
-                    null,
-                    2
-                )
-            )
+            console.log("IG RESPONSE:", JSON.stringify(downloadData, null, 2));
 
             // ======================
-            // HANDLE ARRAY RESPONSE
+            // HANDLE ARRAY/OBJECT RESPONSE
             // ======================
-            const mediaToDownload =
+            const rawMediaList = Array.isArray(downloadData)
+                ? downloadData
+                : downloadData?.data || downloadData?.result || [];
 
-                Array.isArray(downloadData)
-
-                    ? downloadData
-
-                    : downloadData.data ||
-
-                    downloadData.result ||
-
-                    []
-
-            // ======================
-            // NO MEDIA
-            // ======================
-            if (
-                !mediaToDownload ||
-                mediaToDownload.length === 0
-            ) {
-
+            if (!rawMediaList || rawMediaList.length === 0) {
                 return sock.sendMessage(
                     from,
-                    {
-                        text:
-                            "❌ No media found."
-                    },
+                    { text: "❌ No media found." },
                     { quoted: m }
-                )
+                );
+            }
+
+            // Standardize media URLs into strings
+            const mediaToDownload = rawMediaList
+                .map(item => (typeof item === "object" ? item.url || item.link || item.downloadUrl : item))
+                .filter(Boolean);
+
+            if (mediaToDownload.length === 0) {
+                return sock.sendMessage(
+                    from,
+                    { text: "❌ Could not extract valid media download link." },
+                    { quoted: m }
+                );
             }
 
             // ======================
             // SEND MEDIA
             // ======================
-            for (
-                let i = 0;
-                i < mediaToDownload.length;
-                i++
-            ) {
-
+            for (let i = 0; i < mediaToDownload.length; i++) {
                 try {
+                    const mediaUrl = mediaToDownload[i];
 
-                    const mediaUrl =
-                        mediaToDownload[i]
-
-                    console.log(
-                        "SENDING:",
-                        mediaUrl
-                    )
+                    console.log("SENDING:", mediaUrl);
 
                     // ======================
                     // DETECT VIDEO
                     // ======================
                     const isVideo =
+                        mediaUrl.includes(".mp4") ||
+                        /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrl) ||
+                        text.includes("/reel/") ||
+                        text.includes("/tv/");
 
-                        mediaUrl.includes(".mp4")
-
-                        ||
-
-                        /\.(mp4|mov|avi|mkv|webm)$/i
-                            .test(mediaUrl)
-
-                        ||
-
-                        text.includes("/reel/")
-
-                        ||
-
-                        text.includes("/tv/")
+                    const captionText = `Downloaded by ${botName}`;
 
                     // ======================
                     // SEND VIDEO
                     // ======================
                     if (isVideo) {
-
                         await sock.sendMessage(
                             from,
                             {
-                                video: {
-                                    url: mediaUrl
-                                },
-
-                                mimetype:
-                                    "video/mp4",
-
-                                caption:
-                                    `DOWNLOADED BY ${config.botName}`
+                                video: { url: mediaUrl },
+                                mimetype: "video/mp4",
+                                caption: captionText
                             },
                             { quoted: m }
-                        )
+                        );
                     }
-
                     // ======================
                     // SEND IMAGE
                     // ======================
                     else {
-
                         await sock.sendMessage(
                             from,
                             {
-                                image: {
-                                    url: mediaUrl
-                                },
-
-                                caption:
-                                    `Downloaded by ${config.botName}`
+                                image: { url: mediaUrl },
+                                caption: captionText
                             },
                             { quoted: m }
-                        )
+                        );
                     }
 
                     // ======================
-                    // DELAY
+                    // DELAY BETWEEN MEDIA
                     // ======================
-                    await new Promise(
-                        resolve =>
-                            setTimeout(
-                                resolve,
-                                1000
-                            )
-                    )
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
                 } catch (mediaError) {
-
-                    console.log(
-                        "MEDIA ERROR:",
-                        mediaError
-                    )
+                    console.log("MEDIA ERROR:", mediaError);
                 }
             }
 
         } catch (err) {
-
-            console.log(
-                "INSTAGRAM ERROR:",
-                err
-            )
+            console.log("INSTAGRAM ERROR:", err);
 
             await sock.sendMessage(
                 m.key.remoteJid,
-                {
-                    text:
-                        "❌ Instagram download failed."
-                },
+                { text: "❌ Instagram download failed." },
                 { quoted: m }
-            )
+            );
         }
     }
-}
+};
