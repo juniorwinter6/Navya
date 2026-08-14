@@ -84,7 +84,7 @@ No forking required! Click the button below to launch automated setup directly o
    * `OWNER_NUMBER`
    * `PREFIX`
    * `GEMINI_API_KEY`
-   * `HF_KEY`
+   * `HF_TOKEN`
    * `SIGHTENGINE_USER`
    * `SIGHTENGINE_SECRET`
 3. Click **Apply** and wait for the build to complete.

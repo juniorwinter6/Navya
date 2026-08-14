@@ -13,14 +13,21 @@ module.exports = {
 
     async execute(sock, m, args) {
         const from = m.key.remoteJid;
-        const sender = m.key.participant || m.key.remoteJid;
+        const sender = m.sender || m.key.participant || m.key.remoteJid || "";
         const cleanSender = sender.replace(/[^0-9]/g, "");
         const userPrompt = args.join(" ").trim();
 
-        // 1. Retrieve User Token (User Custom > Global / Env Fallback)
-        const userHfToken = global.hfTokens[cleanSender] || process.env.HF_TOKEN;
+        // 1. Robust Token Resolution (User Custom > Global Config > Environment Variables)
+        const userHfToken =
+            global.hfTokens[cleanSender] ||
+            global.hfToken ||
+            global.HF_TOKEN ||
+            (typeof config !== "undefined" && (config.HF_TOKEN || config.HUGGINGFACE_TOKEN)) ||
+            process.env.HF_TOKEN ||
+            process.env.HUGGINGFACE_TOKEN ||
+            process.env.HUGGING_FACE_TOKEN;
 
-        // 2. If no token exists, provide instructions
+        // 2. Only show instructions if NO token is set anywhere on server or user database
         if (!userHfToken) {
             return await sock.sendMessage(from, {
                 text: "⚠️ *Hugging Face API Key Required*\n\n" +
@@ -46,11 +53,11 @@ module.exports = {
         let processingMessage = null;
 
         try {
-            // Instantiate client dynamically using the active user's token
+            // Instantiate client dynamically using the active user's or bot's token
             const client = new InferenceClient(userHfToken);
 
             processingMessage = await sock.sendMessage(from, {
-                text: "🤖 *AI Engine Initialized:* Bypassing router and rendering textures... Please wait."
+                text: "🤖 *AI Engine Initialized:* Rendering textures with FLUX.1... Please wait."
             }, { quoted: m });
 
             await sock.sendPresenceUpdate("composing", from);
@@ -91,18 +98,27 @@ module.exports = {
         } catch (error) {
             console.error("Imagine Command Error:", error);
 
+            // Clean up status message on error
             if (processingMessage && processingMessage.key && processingMessage.key.fromMe === true) {
                 try {
                     await sock.sendMessage(from, { delete: processingMessage.key });
                 } catch (delErr) { }
             }
 
+            const statusCode = error.status || error.statusCode || error.response?.status;
+            const errorMsg = String(error.message || error).toLowerCase();
+
             let errorText = `❌ *Engine Render Failure*\n\n*Details:* ${error.message || error}`;
 
-            if (error.status === 401 || errorText.includes("token") || errorText.includes("401")) {
-                errorText = "❌ *Invalid Hugging Face Token:*\n\nYour saved HF token was rejected. Please check your token or set a new one using `.sethftoken <your_token>`";
-            } else if (errorText.includes("permissions") || errorText.includes("403")) {
-                errorText = "❌ *Hugging Face Provider Restriction:*\n\nThe free Hugging Face serverless tier is currently limiting access to this model. Try again in a few moments.";
+            // Specific, actionable error handling
+            if (statusCode === 401 || errorMsg.includes("401") || errorMsg.includes("invalid token") || errorMsg.includes("unauthorized")) {
+                errorText = "❌ *Invalid Hugging Face Token:*\n\nYour active HF token was rejected by Hugging Face. Please generate a new token (Type: Read) at https://huggingface.co/settings/tokens and update your environment variables or run `.sethftoken <token>`";
+            } else if (statusCode === 403 || errorMsg.includes("403") || errorMsg.includes("permissions")) {
+                errorText = "❌ *Access Denied:* Your Hugging Face token lacks permission or the free tier limit was reached for this model.";
+            } else if (statusCode === 503 || errorMsg.includes("503") || errorMsg.includes("loading")) {
+                errorText = "⏳ *Model Warming Up:* The FLUX engine is currently cold-starting on Hugging Face servers. Please try again in 20 seconds.";
+            } else if (statusCode === 429 || errorMsg.includes("429") || errorMsg.includes("rate limit")) {
+                errorText = "⚠️ *Rate Limit Exceeded:* You have hit Hugging Face's free usage limit. Please wait a few minutes before trying again.";
             }
 
             await sock.sendMessage(from, { text: errorText }, { quoted: m });
