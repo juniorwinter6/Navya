@@ -134,19 +134,23 @@ server.on("error", (err) => {
 // =================================
 async function initSession() {
     const sessionDir = path.join(__dirname, "session");
+    const credsPath = path.join(sessionDir, "creds.json");
 
     if (!fs.existsSync(sessionDir)) {
         fs.mkdirSync(sessionDir, { recursive: true });
     }
 
-    const credsPath = path.join(sessionDir, "creds.json");
+    // Return true immediately if creds file already exists on disk
+    if (fs.existsSync(credsPath)) {
+        return true;
+    }
 
-    // Only restore if creds.json doesn't exist and SESSION_ID is available
-    if (!fs.existsSync(credsPath) && process.env.SESSION_ID) {
+    // Restore from process.env.SESSION_ID if available
+    if (process.env.SESSION_ID) {
         try {
             console.log("🔐 Restoring WhatsApp session from SESSION_ID...");
 
-            let base64Data = process.env.SESSION_ID;
+            let base64Data = process.env.SESSION_ID.trim();
             if (base64Data.includes("~")) {
                 base64Data = base64Data.split("~")[1];
             }
@@ -154,14 +158,17 @@ async function initSession() {
             const sessionData = Buffer.from(base64Data, "base64").toString("utf-8");
             fs.writeFileSync(credsPath, sessionData);
             console.log("✅ Session restored successfully!");
+            return true;
         } catch (err) {
             console.error("❌ Failed to restore session from SESSION_ID:", err.message);
+            return false;
         }
     }
+
+    return false;
 }
 
-
-/// =================================
+// =================================
 // 🔑 AUTOMATIC LID RESOLVER
 // =================================
 const ownerLidCache = new Set();
@@ -193,17 +200,28 @@ async function getOwnerLids(sock, phoneNumbers = []) {
 // 🚀 3. START BOT
 // =================================
 async function startBot() {
-    // Reconstruct creds.json BEFORE Baileys loads the auth state
-    await initSession();
-
     const sessionDir = path.join(__dirname, "session");
+    const credsFile = path.join(sessionDir, "creds.json");
+
+    // 1. Attempt session reconstruction
+    const isSessionRestored = await initSession();
+
+    // 2. Safety Check: If SESSION_ID was provided but failed to restore, halt execution
+    if (process.env.SESSION_ID && !isSessionRestored && !fs.existsSync(credsFile)) {
+        console.error("❌ CRITICAL: SESSION_ID environment variable was provided but failed to decode/restore.");
+        console.error("⚠️ Halting bot start to prevent invalidating existing session on WhatsApp servers.");
+        return;
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
     let version = [2, 3000, 1015901307];
     try {
         const { version: latestVersion } = await fetchLatestBaileysVersion();
         version = latestVersion;
-    } catch (e) { }
+    } catch (e) {
+        console.warn("⚠️ Could not fetch latest WA version, using fallback.");
+    }
 
     const sock = makeWASocket({
         version,
@@ -218,6 +236,7 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
+    // 3. Only request pairing code if explicitly un-registered (first time setup)
     if (!sock.authState.creds.registered) {
         let phoneNumber = config.BOT_NUMBER;
 
@@ -227,8 +246,7 @@ async function startBot() {
         }
 
         phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
-
-        console.log(`\n🔍 Trying to generate pairing code for: ${phoneNumber}`);
+        console.log(`\n🔍 First time setup: Generating pairing code for ${phoneNumber}...`);
 
         setTimeout(async () => {
             try {
@@ -241,25 +259,44 @@ async function startBot() {
             } catch (err) {
                 console.error("❌ Error requesting pairing code:", err.message);
             }
-        }, 3000);
+        }, 5000);
     }
 
     const { startQuoteScheduler, updateSchedulerSocket } = require('./utils/quoteScheduler');
+
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
 
         if (connection === "open") {
             console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
 
-            // Auto-resolve owner and sudo LIDs on startup
+            // Automatically send generated SESSION_ID string to owner on initial setup
+            if (!process.env.SESSION_ID) {
+                try {
+                    if (fs.existsSync(credsFile)) {
+                        const credsRaw = fs.readFileSync(credsFile, "utf-8");
+                        const base64Session = "NAVYA~" + Buffer.from(credsRaw).toString("base64");
+                        const userJid = sock.user.id.split(":")[0] + "@s.whatsapp.net";
+
+                        await sock.sendMessage(userJid, {
+                            text: `🎉 *NAVYA BOT SESSION GENERATED!*\n\n` +
+                                `To keep your bot connected across future Koyeb redeployments, copy the key below and add it as **SESSION_ID** in your Koyeb Environment Variables:\n\n` +
+                                `\`\`\`${base64Session}\`\`\`\n\n` +
+                                `⚠️ *Keep this key private!*`
+                        });
+                        console.log("📩 SESSION_ID automatically sent to user on WhatsApp!");
+                    }
+                } catch (sessionErr) {
+                    console.error("❌ Could not send SESSION_ID to WhatsApp:", sessionErr.message);
+                }
+            }
+
             const ownerNumbers = [config.OWNER_NUMBER, ...(config.SUDO || [])];
             await getOwnerLids(sock, ownerNumbers);
             console.log(`[LID RESOLVER] Cached Owner LIDs:`, Array.from(ownerLidCache));
 
-            // Always update the scheduler's socket reference to the fresh 'sock'
             updateSchedulerSocket(sock);
 
-            // Start cron job only once on initial boot
             if (!isSchedulerRunning) {
                 startQuoteScheduler(sock);
                 isSchedulerRunning = true;
@@ -268,17 +305,20 @@ async function startBot() {
 
         if (connection === "close") {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+
             console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
 
-            if (shouldReconnect) {
-                setTimeout(() => startBot(), 3000);
-            } else {
+            if (isLoggedOut) {
                 isSchedulerRunning = false;
-                console.log("⚠️ Session logged out permanently.");
+                console.log("⚠️ Session logged out permanently. Please check your SESSION_ID environment variable.");
+            } else {
+                console.log("🔄 Attempting reconnect in 5 seconds...");
+                setTimeout(() => startBot(), 5000);
             }
         }
     });
+
 
 
     // ======================
