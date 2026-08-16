@@ -56,27 +56,37 @@ Configure the following environment variables when hosting locally or on cloud p
    Generate your `SESSION_ID` from the **[Navya Pair Site](https://navya-pair.onrender.com)**.
 
 2. **Clone the repository:**
+   ``` bash
    git clone https://github.com/juniorwinter6/Navya.git
    cd Navya
+   ```
 
 3. **Install dependencies:**
+   ```bash
    npm install
+   ```
 
 4. **Configure Environment Variables:**
    Create your `.env` file from the example template and open it in a text editor:
 
    **Windows (PowerShell / Command Prompt):**
+   ```bash
    copy .env.example .env
    notepad .env
+   ```
 
    **Linux / Mac / VPS:**
+   ```bash
    cp .env.example .env
    nano .env
+   ```
 
    Paste your `SESSION_ID` and other credentials into the `.env` file.
 
 5. **Start the bot:**
+   ```bash
    npm start
+   ```
 
 ---
 
