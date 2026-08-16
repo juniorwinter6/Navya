@@ -1,8 +1,9 @@
+```
 # 🤖 Navya WhatsApp Bot
 
 **Navya** is a powerful, multi-purpose WhatsApp userbot engineered in Node.js using the Baileys library. Built with performance, modularity, and community hosting in mind, Navya serves as an all-in-one assistant equipped with automated group moderation, real-time media tools, custom command handling, and seamless multi-platform cloud deployment options.
 
-Whether you need strict group protection, automated AI features, or simple utility management, Navya provides a complete hands-off solution with built-in pairing-code authentication for effortless setup across any platform.
+Whether you need strict group protection, automated AI features, or simple utility management, Navya provides a complete hands-off solution using cloud-based session authentication for effortless deployment.
 
 ---
 
@@ -12,21 +13,37 @@ Whether you need strict group protection, automated AI features, or simple utili
 * **AI Integration:** Seamlessly generate text responses using Google Gemini and create images on demand with Hugging Face FLUX models.
 * **Anti-Call System:** Automatically declines or blocks unwanted incoming WhatsApp voice/video calls.
 * **Group Management:** Built-in moderation tools, customizable command prefixes, and full administrative controls.
+* **Web Session Authenticator:** Link your WhatsApp account seamlessly via our online pairing portal to generate your `SESSION_ID`.
+
+---
+
+## 🔑 Step 1: Get Your Session ID
+
+Before deploying the bot locally or to any cloud platform, you must generate a `SESSION_ID`:
+
+1. Visit the **[Navya Pair Site](https://navya-pair.onrender.com)**.
+2. Enter your WhatsApp phone number in international format without `+` or spaces (e.g., `2348012345678`).
+3. Click **Get Code** and copy the 8-digit pairing code shown on screen.
+4. Open WhatsApp on your phone -> **Linked Devices** -> **Link with Phone Number**, and enter the code.
+5. Check your WhatsApp DMs—Navya Pair Site will send you a message containing your `SESSION_ID` string (starts with `NAVYA~...`).
+6. Copy this code and use it in your environment variables setup below.
 
 ---
 
 ## ⚙️ Environment Variables Setup
 
-Whether hosting locally or on a cloud panel, configure the following environment variables:
+Configure the following environment variables when hosting locally or on cloud providers:
 
 | Variable | Description | Where to get it / Example |
 | :--- | :--- | :--- |
+| `SESSION_ID` | **Required.** Session authentication string | [Navya Pair Site](https://navya-pair.onrender.com) |
 | `BOT_NAME` | Display name for the bot | e.g. `Navya` |
 | `BOT_NUMBER` | Phone number assigned to the bot (without `+`) | e.g. `2347077445628` |
 | `OWNER_NUMBER` | Bot owner's phone number (without `+`) | e.g. `2348058068041` |
 | `OWNER_NAME` | Bot owner's display name | e.g. `Rise` |
-| `GEMINI_API_KEY` | API Key for Gemini AI responses | [Google AI Studio](https://aistudio.google.com/) |
-| `HF_TOKEN` | Hugging Face Access Token for `.imagine` image generation | [Hugging Face Settings](https://huggingface.co/settings/tokens) |
+| `PREFIX` | Command prefix symbol | e.g. `.` |
+| `GEMINI_API_KEY` | API Key for Gemini AI responses | [Google AI Studio](https://ai.google.dev/) |
+| `HF_TOKEN` | Hugging Face Access Token for `.imagine` | [Hugging Face Settings](https://huggingface.co/settings/tokens) |
 | `SIGHTENGINE_USER` | API User ID for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
 | `SIGHTENGINE_SECRET` | API Secret Key for Anti-Porn scanning | [Sightengine Dashboard](https://sightengine.com/) |
 
@@ -36,36 +53,31 @@ Whether hosting locally or on a cloud panel, configure the following environment
 
 ### Method A: Local / VPS Setup
 
-1. **Clone the repository:**
-   ```bash
+1. **Get your Session ID:**
+   Generate your `SESSION_ID` from the **[Navya Pair Site](https://navya-pair.onrender.com)**.
+
+2. **Clone the repository:**
    git clone https://github.com/juniorwinter6/Navya.git
    cd Navya
-   ```
 
-2. **Install dependencies:**
-   ```bash
+3. **Install dependencies:**
    npm install
-   ```
 
-3. **Configure Environment Variables:**
-   Create your .env file from the example template and open it in a text editor:
+4. **Configure Environment Variables:**
+   Create your `.env` file from the example template and open it in a text editor:
 
-**Windows (PowerShell / Command Prompt):**
-```bash
-copy .env.example .env
-notepad .env
-```
+   **Windows (PowerShell / Command Prompt):**
+   copy .env.example .env
+   notepad .env
 
-**Linux / Mac / VPS:**
-```bash
-cp .env.example .env
-nano .env
-```
+   **Linux / Mac / VPS:**
+   cp .env.example .env
+   nano .env
 
-4. **Start the bot:**
-   ```bash
+   Paste your `SESSION_ID` and other credentials into the `.env` file.
+
+5. **Start the bot:**
    npm start
-   ```
 
 ---
 
@@ -76,8 +88,10 @@ No forking required! Click the button below to launch automated setup directly o
 
 [![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
-1. Click the **Deploy to Render** button above.
-2. Fill in all required environment variables on the Render setup screen:
+1. Get your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
+2. Click the **Deploy to Render** button above.
+3. Fill in all required environment variables on the Render setup screen:
+   * `SESSION_ID` *(Paste your NAVYA~... code here)*
    * `BOT_NAME`
    * `OWNER_NAME`
    * `BOT_NUMBER`
@@ -87,8 +101,7 @@ No forking required! Click the button below to launch automated setup directly o
    * `HF_TOKEN`
    * `SIGHTENGINE_USER`
    * `SIGHTENGINE_SECRET`
-3. Click **Apply** and wait for the build to complete.
-4. Once running, check the **Logs** tab on your Render dashboard to retrieve your **8-digit pairing code**!
+4. Click **Apply** and wait for the build to complete. Your bot will connect automatically!
 
 ---
 
@@ -97,15 +110,19 @@ Deploying to Koyeb is fast and automated using our custom Web Form helper!
 
 [![Deploy to Koyeb](https://img.shields.io/badge/Deploy%20to-Koyeb-10B981?style=for-the-badge&logo=koyeb&logoColor=white)](https://jovial-treacle-c8cd59.netlify.app/)
 
-1. Click the **Deploy to Koyeb** button above to open the setup helper.
-2. Fill in your bot credentials (`BOT_NAME`, `OWNER_NAME`, `GEMINI_API_KEY`, etc.).
-3. Click **🚀 Deploy to Koyeb**—the site will automatically open Koyeb with all your configuration pre-filled.
-4. Confirm deployment on Koyeb, then check the **Runtime Logs** tab to grab your **8-digit pairing code**!
+1. Get your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
+2. Click the **Deploy to Koyeb** button above to open the setup helper.
+3. Fill in your `SESSION_ID` and bot credentials (`BOT_NAME`, `OWNER_NAME`, `GEMINI_API_KEY`, etc.).
+4. Click **🚀 Deploy to Koyeb**—the site will automatically open Koyeb with all your configuration pre-filled.
+5. Confirm deployment on Koyeb, and the bot will start up immediately!
+
+---
 
 #### 3. Katabump / Web Panels
+* Obtain your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
 * Upload the repository zip or pull directly from Git inside your panel file manager.
-* Rename `.env.example` to `.env` and enter your credentials (`BOT_NAME`, `BOT_NUMBER`, `GEMINI_API_KEY`, `SIGHTENGINE_USER`, etc.).
-* Start the service, view the console logs for your pairing code, and link your WhatsApp!
+* Rename `.env.example` to `.env` and enter your credentials including your `SESSION_ID`.
+* Start the service and your bot will come online instantly.
 
 ---
 
@@ -113,3 +130,5 @@ Deploying to Koyeb is fast and automated using our custom Web Form helper!
 
 * Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
 * Powered by [Baileys](https://github.com/WhiskeySockets/Baileys), [Google Gemini](https://ai.google.dev/), [Hugging Face](https://huggingface.co/), and [Sightengine](https://sightengine.com/).
+
+```

@@ -1,7 +1,7 @@
 // ==========================================
 // AUTO-INSTALL DEPENDENCIES & BINARIES ON HOST
 // ==========================================
-const fs = require("fs");
+const fs = require("fs-extra");
 const path = require("path");
 const { execSync } = require("child_process");
 
@@ -23,14 +23,13 @@ if (needsModules || needsFfmpeg) {
         console.error("❌ Failed to auto-install dependencies:", err.message);
     }
 }
-// ==========================================
-// YOUR EXISTING index.js CODE STARTS BELOW
-// ==========================================
 
-require("dotenv").config(); // Loaded at the very top so process.env is ready
+// ==========================================
+// INDEX.JS CORE LOGIC
+// ==========================================
+require("dotenv").config();
 
-//const path = require('path');
-//const fs = require("fs-extra");
+const zlib = require("zlib");
 const express = require("express");
 const pino = require("pino");
 const QRCode = require("qrcode-terminal");
@@ -46,14 +45,13 @@ const {
 } = require("@whiskeysockets/baileys");
 
 // Custom Utilities & Schedulers
-const { startQuoteScheduler } = require('./utils/quoteScheduler');
-const { scanIncomingMedia } = require('./utils/nsfwScanner');
-const { startAutoCleaner } = require('./utils/autoCleaner');
-//const pairRouter = require("./server");
-const config = require('./config');
+const { startQuoteScheduler, updateSchedulerSocket } = require("./utils/quoteScheduler");
+const { scanIncomingMedia } = require("./utils/nsfwScanner");
+const { startAutoCleaner } = require("./utils/autoCleaner");
+const config = require("./config");
+const ytsCmd = require("./commands/Downloaders/yts");
 
-const ytsCmd = require('./commands/Downloaders/yts'); // Adjust this path if yts.js is in a different folder
-// Keep track of the scheduler state outside the connection listener
+// State Tracking
 let isSchedulerRunning = false;
 
 // Config Globals
@@ -62,16 +60,9 @@ global.OWNERS = config.OWNERS;
 
 // Initialize Gemini SDK safely
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-// Global anti-spam storage cache (In-Memory for rolling windows)
+// Global anti-spam storage cache
 global.spamTrackingMap = new Map();
-
 const deletedMessages = {};
-// Express HTTP Health Check Server for Koyeb
-
-
-// ======================
-// WEB SERVER SETUP (Serves Pairing UI + Health Check)
 
 // ======================
 // HELPERS
@@ -98,15 +89,11 @@ function getSender(m) {
     return rawId.split("@")[0].split(":")[0];
 }
 
-// ======================
-// START BOT
-// ======================
 // =================================
 // 🌐 1. EXPRESS HEALTH CHECK SERVER
 // =================================
 const app = express();
 const PORT = process.env.PORT || 8080;
-
 
 app.get("/", (req, res) => {
     res.status(200).send("NAVYA BOT is running smoothly!");
@@ -116,7 +103,6 @@ const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Health check server active on port ${PORT}`);
 });
 
-// Fallback error handler for local EADDRINUSE conflicts
 server.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
         console.log(`⚠️ Port ${PORT} is currently in use. Trying port 8081...`);
@@ -127,7 +113,6 @@ server.on("error", (err) => {
         console.error("Server error:", err);
     }
 });
-
 
 // =================================
 // 🔐 2. SESSION RESTORER HELPER
@@ -140,12 +125,10 @@ async function initSession() {
         fs.mkdirSync(sessionDir, { recursive: true });
     }
 
-    // Return true immediately if creds file already exists on disk
     if (fs.existsSync(credsPath)) {
         return true;
     }
 
-    // Restore from process.env.SESSION_ID if available
     if (process.env.SESSION_ID) {
         try {
             console.log("🔐 Restoring WhatsApp session from SESSION_ID...");
@@ -155,7 +138,16 @@ async function initSession() {
                 base64Data = base64Data.split("~")[1];
             }
 
-            const sessionData = Buffer.from(base64Data, "base64").toString("utf-8");
+            const buffer = Buffer.from(base64Data, "base64");
+            let sessionData;
+
+            // Handle zlib-compressed SESSION_ID
+            try {
+                sessionData = zlib.inflateSync(buffer).toString("utf-8");
+            } catch {
+                sessionData = buffer.toString("utf-8");
+            }
+
             fs.writeFileSync(credsPath, sessionData);
             console.log("✅ Session restored successfully!");
             return true;
@@ -185,8 +177,7 @@ async function getOwnerLids(sock, phoneNumbers = []) {
             if (Array.isArray(results) && results.length > 0) {
                 const user = results[0];
                 if (user && user.lid) {
-                    // Extract numeric LID (e.g., 100399675609189)
-                    const lidNum = user.lid.split('@')[0].split(':')[0];
+                    const lidNum = user.lid.split("@")[0].split(":")[0];
                     ownerLidCache.add(lidNum);
                 }
             }
@@ -203,93 +194,56 @@ async function startBot() {
     const sessionDir = path.join(__dirname, "session");
     const credsFile = path.join(sessionDir, "creds.json");
 
-    // 1. Attempt session reconstruction
-    const isSessionRestored = await initSession();
-
-    // 2. Safety Check: If SESSION_ID was provided but failed to restore, halt execution
-    if (process.env.SESSION_ID && !isSessionRestored && !fs.existsSync(credsFile)) {
-        console.error("❌ CRITICAL: SESSION_ID environment variable was provided but failed to decode/restore.");
-        console.error("⚠️ Halting bot start to prevent invalidating existing session on WhatsApp servers.");
-        return;
+    // Restore session if creds.json is absent
+    if (!fs.existsSync(credsFile)) {
+        const isSessionRestored = await initSession();
+        if (!isSessionRestored) {
+            console.error("❌ CRITICAL: No valid SESSION_ID or creds.json found.");
+            console.error("⚠️ Please set a valid SESSION_ID environment variable.");
+            return;
+        }
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
-    let version = [2, 3000, 1015901307];
+    let version;
     try {
-        const { version: latestVersion } = await fetchLatestBaileysVersion();
-        version = latestVersion;
+        const fetch = await fetchLatestBaileysVersion();
+        version = fetch.version;
     } catch (e) {
-        console.warn("⚠️ Could not fetch latest WA version, using fallback.");
+        console.warn("⚠️ Could not fetch latest WA version online, using library default.");
     }
 
     const sock = makeWASocket({
         version,
         auth: state,
-        logger: pino({ level: "silent" }),
+        logger: pino({ level: "fatal" }),
         printQRInTerminal: false,
         browser: Browsers.ubuntu("Chrome"),
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 25000,
-        syncFullHistory: false
+        syncFullHistory: false,
+        shouldIgnoreJid: (jid) => jid === "status@broadcast",
+        getMessage: async (key) => {
+            if (global.store) {
+                const msg = await global.store.loadMessage(key.remoteJid, key.id);
+                return msg?.message || undefined;
+            }
+            return { conversation: "" };
+        }
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    // 3. Only request pairing code if explicitly un-registered (first time setup)
-    if (!sock.authState.creds.registered) {
-        let phoneNumber = config.BOT_NUMBER;
-
-        if (!phoneNumber) {
-            console.error("❌ ERROR: BOT_NUMBER is not set in config.js!");
-            return;
-        }
-
-        phoneNumber = String(phoneNumber).replace(/[^0-9]/g, '');
-        console.log(`\n🔍 First time setup: Generating pairing code for ${phoneNumber}...`);
-
-        setTimeout(async () => {
-            try {
-                const code = await sock.requestPairingCode(phoneNumber);
-                const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
-
-                console.log("\n=================================");
-                console.log(`📱 WHATSAPP PAIRING CODE FOR ${phoneNumber}: ${formattedCode}`);
-                console.log("=================================\n");
-            } catch (err) {
-                console.error("❌ Error requesting pairing code:", err.message);
-            }
-        }, 5000);
-    }
-
-    const { startQuoteScheduler, updateSchedulerSocket } = require('./utils/quoteScheduler');
-
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
 
+        if (connection === "connecting") {
+            console.log("🔄 Connecting to WhatsApp WebSockets...");
+        }
+
         if (connection === "open") {
             console.log("✅ NAVYA CONNECTED SUCCESSFULLY!");
-
-            // Automatically send generated SESSION_ID string to owner on initial setup
-            if (!process.env.SESSION_ID) {
-                try {
-                    if (fs.existsSync(credsFile)) {
-                        const credsRaw = fs.readFileSync(credsFile, "utf-8");
-                        const base64Session = "NAVYA~" + Buffer.from(credsRaw).toString("base64");
-                        const userJid = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-
-                        await sock.sendMessage(userJid, {
-                            text: `🎉 *NAVYA BOT SESSION GENERATED!*\n\n` +
-                                `To keep your bot connected across future Koyeb redeployments, copy the key below and add it as **SESSION_ID** in your Koyeb Environment Variables:\n\n` +
-                                `\`\`\`${base64Session}\`\`\`\n\n` +
-                                `⚠️ *Keep this key private!*`
-                        });
-                        console.log("📩 SESSION_ID automatically sent to user on WhatsApp!");
-                    }
-                } catch (sessionErr) {
-                    console.error("❌ Could not send SESSION_ID to WhatsApp:", sessionErr.message);
-                }
-            }
 
             const ownerNumbers = [config.OWNER_NUMBER, ...(config.SUDO || [])];
             await getOwnerLids(sock, ownerNumbers);
@@ -307,23 +261,22 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-            console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || 'Unknown'})`);
+            console.log(`❌ CONNECTION CLOSED (Reason Code: ${statusCode || "Unknown"})`);
 
             if (isLoggedOut) {
                 isSchedulerRunning = false;
-                console.log("⚠️ Session logged out permanently. Please check your SESSION_ID environment variable.");
+                console.log("⚠️ Session logged out permanently. Deleting invalid session folder...");
+                try {
+                    fs.rmSync(sessionDir, { recursive: true, force: true });
+                } catch (e) { }
             } else {
-                console.log("🔄 Attempting reconnect in 5 seconds...");
+                console.log("🔄 Reconnecting in 5 seconds...");
                 setTimeout(() => startBot(), 5000);
             }
         }
     });
 
 
-
-    // ======================
-    // ANTICALL SYSTEM
-    // ======================
     // ANTICALL SYSTEM (Simple Reject & Text)
     // ======================
     const activeCalls = new Set();
