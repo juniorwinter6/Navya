@@ -1,4 +1,3 @@
-```
 # 🤖 Navya WhatsApp Bot
 
 **Navya** is a powerful, multi-purpose WhatsApp userbot engineered in Node.js using the Baileys library. Built with performance, modularity, and community hosting in mind, Navya serves as an all-in-one assistant equipped with automated group moderation, real-time media tools, custom command handling, and seamless multi-platform cloud deployment options.
@@ -131,4 +130,3 @@ Deploying to Koyeb is fast and automated using our custom Web Form helper!
 * Developed by **Rise** ([@juniorwinter6](https://github.com/juniorwinter6))
 * Powered by [Baileys](https://github.com/WhiskeySockets/Baileys), [Google Gemini](https://ai.google.dev/), [Hugging Face](https://huggingface.co/), and [Sightengine](https://sightengine.com/).
 
-```
