@@ -87,7 +87,7 @@ No forking required! Click the button below to launch automated setup directly o
 
 [![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/deploy?repo=https://github.com/juniorwinter6/Navya)
 
-1. Get your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
+1. Get your `SESSION_ID` from **[Navya Pair Site](https://navya-pair.onrender.com)**.
 2. Click the **Deploy to Render** button above.
 3. Fill in all required environment variables on the Render setup screen:
    * `SESSION_ID` *(Paste your NAVYA~... code here)*
@@ -109,7 +109,7 @@ Deploying to Koyeb is fast and automated using our custom Web Form helper!
 
 [![Deploy to Koyeb](https://img.shields.io/badge/Deploy%20to-Koyeb-10B981?style=for-the-badge&logo=koyeb&logoColor=white)](https://jovial-treacle-c8cd59.netlify.app/)
 
-1. Get your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
+1. Get your `SESSION_ID` from **[Navya Pair Site](https://navya-pair.onrender.com)**.
 2. Click the **Deploy to Koyeb** button above to open the setup helper.
 3. Fill in your `SESSION_ID` and bot credentials (`BOT_NAME`, `OWNER_NAME`, `GEMINI_API_KEY`, etc.).
 4. Click **🚀 Deploy to Koyeb**—the site will automatically open Koyeb with all your configuration pre-filled.
@@ -118,7 +118,7 @@ Deploying to Koyeb is fast and automated using our custom Web Form helper!
 ---
 
 #### 3. Katabump / Web Panels
-* Obtain your `SESSION_ID` from **[https://navya-pair.onrender.com](https://navya-pair.onrender.com)**.
+* Obtain your `SESSION_ID` from **[Navya Pair Site](https://navya-pair.onrender.com)**.
 * Upload the repository zip or pull directly from Git inside your panel file manager.
 * Rename `.env.example` to `.env` and enter your credentials including your `SESSION_ID`.
 * Start the service and your bot will come online instantly.
