@@ -1,9 +1,45 @@
-const ytdlp = require('yt-dlp-exec');
 const yts = require('yt-search');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const ffmpegPath = require('ffmpeg-static');
+
+// Primary API Downloader using Cobalt API (No yt-dlp or cookies needed)
+async function downloadAudioViaApi(videoUrl, outputPath) {
+    const apiResponse = await axios.post(
+        'https://api.cobalt.tools/api/json',
+        {
+            url: videoUrl,
+            downloadMode: 'audio',
+            audioFormat: 'mp3'
+        },
+        {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            timeout: 30000
+        }
+    );
+
+    if (apiResponse.data && apiResponse.data.url) {
+        const streamResponse = await axios({
+            url: apiResponse.data.url,
+            method: 'GET',
+            responseType: 'stream'
+        });
+
+        const writer = fs.createWriteStream(outputPath);
+        streamResponse.data.pipe(writer);
+
+        return new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+    } else {
+        throw new Error('Audio download API service did not return a valid stream.');
+    }
+}
 
 module.exports = {
     name: 'play',
@@ -56,7 +92,6 @@ module.exports = {
                 msg?.message?.conversation ||
                 msg?.message?.extendedTextMessage?.text ||
                 '';
-
             if (rawText) {
                 query = rawText.replace(/^\.\w+|^\!\w+|^\/\w+/i, '').trim();
             }
@@ -122,15 +157,8 @@ module.exports = {
             const tempFilename = `temp_${Date.now()}`;
             const tempPath = path.join(__dirname, `${tempFilename}.mp3`);
 
-            // Download audio using yt-dlp binary
-            await ytdlp(videoUrl, {
-                extractAudio: true,
-                audioFormat: 'mp3',
-                output: tempPath,
-                ffmpegLocation: ffmpegPath,
-                noPlaylist: true,
-                quiet: true
-            });
+            // Download audio via API (bypasses yt-dlp & cloud blocks)
+            await downloadAudioViaApi(videoUrl, tempPath);
 
             if (!fs.existsSync(tempPath)) {
                 throw new Error('Failed to create audio file.');
@@ -157,6 +185,7 @@ module.exports = {
 
             // Dispatch Thumbnail Image & Audio
             const statusCaption = `🎶 *Sending audio:* "${formattedTitle}"${songDetails.timestamp ? ` [${songDetails.timestamp}]` : ''}`;
+            const sanitizeFilename = `${songDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
 
             if (sock && typeof sock.sendMessage === 'function' && chatId) {
                 // 1. Send YouTube Thumbnail Image with track metadata caption
@@ -173,14 +202,14 @@ module.exports = {
                 await sock.sendMessage(chatId, {
                     audio: audioBuffer,
                     mimetype: 'audio/mp4',
-                    fileName: `${songDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`,
+                    fileName: sanitizeFilename,
                     ptt: false
                 }, { quoted: msg });
 
             } else if (typeof msg?.reply === 'function') {
                 await msg.reply(statusCaption);
                 await msg.reply({
-                    files: [{ attachment: audioBuffer, name: `${songDetails.title}.mp3` }]
+                    files: [{ attachment: audioBuffer, name: sanitizeFilename }]
                 });
             }
 
