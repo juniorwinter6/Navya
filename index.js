@@ -38,6 +38,7 @@ const { GoogleGenAI } = require("@google/genai");
 const {
     default: makeWASocket,
     useMultiFileAuthState,
+    makeCacheableSignalKeyStore, // <--- Added here
     DisconnectReason,
     fetchLatestBaileysVersion,
     Browsers,
@@ -216,7 +217,10 @@ async function startBot() {
 
     const sock = makeWASocket({
         version,
-        auth: state,
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }))
+        },
         logger: pino({ level: "fatal" }),
         printQRInTerminal: false,
         browser: Browsers.ubuntu("Chrome"),
@@ -275,6 +279,7 @@ async function startBot() {
             }
         }
     });
+
 
 
     // ANTICALL SYSTEM (Simple Reject & Text)
@@ -426,7 +431,7 @@ async function startBot() {
                         global.ytsSessions.delete(quotedStanzaId);
 
                         // Call handler from loaded commands or require
-                        const ytsModule = require('./commands/downloaders/yts'); // Adjust relative path if needed
+                        const ytsModule = require('./commands/Downloaders/yts'); // Adjust relative path if needed
                         await ytsModule.handleYtsReply(sock, m, session, selectionNum - 1);
                         return; // Stop execution here
                     } else {

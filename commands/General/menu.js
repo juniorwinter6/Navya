@@ -132,7 +132,14 @@ const menuImages = [
     "./assets/menu4.jpg",
     "./assets/menu5.jpg",
     "./assets/menu6.jpg",
-    "./assets/menu7.jpg"
+    "./assets/menu7.jpg",
+    "./assets/menu8.jpg",
+    "./assets/menu9.jpg",
+    "./assets/menu10.jpg",
+    "./assets/menu11.jpg",
+    "./assets/menu12.jpg",
+    "./assets/menu13.jpg",
+    "./assets/menu14.jpg"
 ];
 
 module.exports = {

@@ -1,306 +1,192 @@
-/**
- * Song Downloader - Download audio from YouTube
- * Features: 429 Rate-Limit Prevention, Auto-Document (>16MB), Socket Retry, Input Sanitization
- */
-
+const ytdlp = require('yt-dlp-exec');
 const yts = require('yt-search');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
-const APIs = require('../../utils/api');
-const { toAudio } = require('../../utils/converter');
-
-const MAX_AUDIO_SIZE = 16 * 1024 * 1024; // 16 MB
-const MAX_DOCUMENT_SIZE = 2 * 1024 * 1024 * 1024; // 2 GB
-
-/**
- * Helper to safely send messages with retries if the socket dropped during download
- */
-async function safeSendMessage(sock, chatId, content, options = {}, retries = 3) {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-            return await sock.sendMessage(chatId, content, options);
-        } catch (err) {
-            const isConnClosed = err?.message?.includes('Connection Closed') || err?.output?.statusCode === 428;
-            if (isConnClosed && attempt < retries) {
-                console.log(`[Song DL] Socket disconnected. Waiting 2s before retry (${attempt}/${retries})...`);
-                await new Promise(res => setTimeout(res, 2000));
-            } else {
-                throw err;
-            }
-        }
-    }
-}
+const ffmpegPath = require('ffmpeg-static');
 
 module.exports = {
     name: 'play',
-    aliases: ['song', 'music', 'yta', 'audio'],
-    category: 'media',
-    description: 'Download audio from YouTube',
-    usage: '.song <song name or YouTube link>',
+    aliases: ['song', 'yta', 'ytmp3', 'music', 'audio', 'downloadsong'],
+    category: 'downloader',
+    description: 'Search and download audio from YouTube with thumbnail preview',
+    async execute(arg1, arg2, arg3) {
+        let sock = null;
+        let msg = null;
+        let args = [];
 
-    async execute(sock, msg, args) {
-        const chatId = msg.key.remoteJid;
-        try {
-            // Clean input from surrounding quotes or angle brackets
-            let rawInput = args.join(' ').trim().replace(/^["'<]+|["'>]+$/g, '').trim();
+        // Parameter matching for Baileys command structure
+        if (arg1?.sendMessage) {
+            sock = arg1;
+            msg = arg2;
+            args = arg3;
+        } else if (arg1?.key) {
+            msg = arg1;
+            args = arg2;
+            sock = arg3?.sock || arg3?.client || global.sock;
+        } else {
+            msg = arg1 || arg2;
+            sock = arg3?.sock || arg3?.client || global.sock;
+            args = arg2;
+        }
 
-            if (!rawInput) {
-                return await safeSendMessage(sock, chatId, {
-                    text: 'Usage: .song <song name or YouTube link>'
-                }, { quoted: msg });
+        const chatId = msg?.key?.remoteJid || msg?.from || msg?.chat;
+
+        const sendReply = async (text) => {
+            if (sock && typeof sock.sendMessage === 'function' && chatId) {
+                return await sock.sendMessage(chatId, { text }, { quoted: msg });
+            } else if (typeof msg?.reply === 'function') {
+                return await msg.reply(text);
             }
+            console.log(`[Play Cmd Output]: ${text}`);
+        };
 
-            let videoUrl = '';
-            let video = null;
+        // Parse search query
+        let query = '';
+        if (Array.isArray(args) && args.length > 0) {
+            query = args.join(' ').trim();
+        } else if (typeof args === 'string' && args.trim().length > 0) {
+            query = args.trim();
+        }
 
-            const isYouTubeUrl = rawInput.includes('youtube.com') || rawInput.includes('youtu.be');
+        if (!query) {
+            const rawText =
+                msg?.body ||
+                msg?.text ||
+                msg?.message?.conversation ||
+                msg?.message?.extendedTextMessage?.text ||
+                '';
 
-            if (isYouTubeUrl) {
-                const videoIdMatch = rawInput.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-                const videoId = videoIdMatch ? videoIdMatch[1] : null;
+            if (rawText) {
+                query = rawText.replace(/^\.\w+|^\!\w+|^\/\w+/i, '').trim();
+            }
+        }
 
-                if (videoId) {
-                    videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        if (!query) {
+            return await sendReply('Please provide a song name or YouTube link.');
+        }
 
-                    // Safely try fetching metadata without letting 429 break the command
-                    try {
-                        const searchById = await yts({ videoId });
-                        if (searchById) {
-                            video = {
-                                url: videoUrl,
-                                title: searchById.title || 'YouTube Audio',
-                                timestamp: searchById.timestamp || searchById.duration?.timestamp || 'Unknown',
-                                thumbnail: searchById.thumbnail || searchById.image || null
-                            };
-                        }
-                    } catch (e) {
-                        console.log('[Song DL] yts rate-limited (429) or failed. Using fallback metadata.');
-                    }
-                }
+        let videoUrl = query;
+        let songDetails = {
+            title: 'Audio Track',
+            author: 'Unknown Artist',
+            timestamp: '',
+            thumbnail: ''
+        };
 
-                if (!video) {
-                    videoUrl = rawInput.split('?')[0];
-                    video = {
-                        url: videoUrl,
-                        title: 'YouTube Audio',
-                        timestamp: 'Unknown',
-                        thumbnail: null
+        try {
+            await sendReply(`🔍 Searching for: *${query}*`);
+
+            // Helper to extract YouTube Video ID from any standard link
+            const extractVideoId = (url) => {
+                const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+                return match ? match[1] : null;
+            };
+
+            const videoId = extractVideoId(query);
+
+            if (videoId) {
+                // If query is a direct YouTube link, fetch metadata via videoId
+                const videoData = await yts({ videoId: videoId });
+                if (videoData) {
+                    videoUrl = videoData.url;
+                    songDetails = {
+                        title: videoData.title,
+                        author: videoData.author?.name || 'Unknown Artist',
+                        timestamp: videoData.timestamp || '',
+                        thumbnail: videoData.thumbnail || videoData.image || ''
                     };
                 }
             } else {
-                // Search query pathway wrapped in try/catch for 429s
-                try {
-                    const search = await yts(rawInput);
-                    if (search && search.videos && search.videos.length > 0) {
-                        video = search.videos[0];
-                        videoUrl = video.url;
-                    }
-                } catch (e) {
-                    console.log('[Song DL] yts search query rate-limited (429).');
+                // Perform text search if query is a song title
+                const searchResults = await yts(query);
+                if (!searchResults || !searchResults.videos.length) {
+                    return await sendReply('❌ No results found for your search.');
                 }
-
-                if (!video) {
-                    return await safeSendMessage(sock, chatId, {
-                        text: '❌ YouTube search is currently rate-limited. Please try again with a direct YouTube link.'
-                    }, { quoted: msg });
-                }
+                const firstVideo = searchResults.videos[0];
+                videoUrl = firstVideo.url;
+                songDetails = {
+                    title: firstVideo.title,
+                    author: firstVideo.author?.name || 'Unknown Artist',
+                    timestamp: firstVideo.timestamp || '',
+                    thumbnail: firstVideo.thumbnail || firstVideo.image || ''
+                };
             }
 
-            // Safe Thumbnail Fetching (Prevents Baileys 429 crash)
+            const formattedTitle = songDetails.author !== 'Unknown Artist'
+                ? `${songDetails.title} - ${songDetails.author}`
+                : songDetails.title;
+
+            await sendReply(`🎵 Downloading & processing: *${formattedTitle}*...`);
+
+            const tempFilename = `temp_${Date.now()}`;
+            const tempPath = path.join(__dirname, `${tempFilename}.mp3`);
+
+            // Download audio using yt-dlp binary
+            await ytdlp(videoUrl, {
+                extractAudio: true,
+                audioFormat: 'mp3',
+                output: tempPath,
+                ffmpegLocation: ffmpegPath,
+                noPlaylist: true,
+                quiet: true
+            });
+
+            if (!fs.existsSync(tempPath)) {
+                throw new Error('Failed to create audio file.');
+            }
+
+            const audioBuffer = fs.readFileSync(tempPath);
+
+            // Clean up temp audio file
+            fs.unlinkSync(tempPath);
+
+            // Download YouTube thumbnail image into a buffer
             let thumbnailBuffer = null;
-            if (video.thumbnail) {
+            if (songDetails.thumbnail) {
                 try {
-                    const thumbRes = await axios.get(video.thumbnail, {
+                    const thumbRes = await axios.get(songDetails.thumbnail, {
                         responseType: 'arraybuffer',
-                        timeout: 5000,
-                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                        timeout: 10000
                     });
-                    if (thumbRes.status === 200) {
-                        thumbnailBuffer = Buffer.from(thumbRes.data);
-                    }
-                } catch (e) {
-                    console.log('[Song DL] Thumbnail fetch failed (429/Timeout). Sending text notification.');
+                    thumbnailBuffer = Buffer.from(thumbRes.data);
+                } catch (thumbErr) {
+                    console.warn('[Thumbnail Fetch Warning]:', thumbErr.message);
                 }
             }
 
-            // Send download status message
-            if (thumbnailBuffer) {
-                await safeSendMessage(sock, chatId, {
-                    image: thumbnailBuffer,
-                    caption: `🎵 Downloading: *${video.title}*\n⏱ Duration: ${video.timestamp}`
-                }, { quoted: msg });
-            } else {
-                await safeSendMessage(sock, chatId, {
-                    text: `🎵 Downloading: *${video.title}*\n⏱ Duration: ${video.timestamp}`
-                }, { quoted: msg });
-            }
+            // Dispatch Thumbnail Image & Audio
+            const statusCaption = `🎶 *Sending audio:* "${formattedTitle}"${songDetails.timestamp ? ` [${songDetails.timestamp}]` : ''}`;
 
-            // Fallback API download chain
-            let audioBuffer;
-            let downloadSuccess = false;
-
-            const apiMethods = [
-                { name: 'EliteProTech', method: () => APIs.getEliteProTechDownloadByUrl(videoUrl) },
-                { name: 'Yupra', method: () => APIs.getYupraDownloadByUrl(videoUrl) },
-                { name: 'Okatsu', method: () => APIs.getOkatsuDownloadByUrl(videoUrl) },
-                { name: 'Izumi', method: () => APIs.getIzumiDownloadByUrl(videoUrl) }
-            ];
-
-            for (const apiMethod of apiMethods) {
-                try {
-                    const audioData = await apiMethod.method();
-                    const audioDlUrl = audioData?.download || audioData?.dl || audioData?.url;
-
-                    if (!audioDlUrl) continue;
-
-                    try {
-                        const audioResponse = await axios.get(audioDlUrl, {
-                            responseType: 'arraybuffer',
-                            timeout: 120000,
-                            maxContentLength: Infinity,
-                            maxBodyLength: Infinity,
-                            decompress: true,
-                            validateStatus: s => s >= 200 && s < 400,
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                'Accept': '*/*',
-                                'Accept-Encoding': 'identity'
-                            }
-                        });
-                        audioBuffer = Buffer.from(audioResponse.data);
-
-                        if (audioBuffer && audioBuffer.length > 0) {
-                            downloadSuccess = true;
-                            break;
-                        }
-                    } catch (downloadErr) {
-                        // Stream Fallback
-                        const audioResponse = await axios.get(audioDlUrl, {
-                            responseType: 'stream',
-                            timeout: 120000,
-                            maxContentLength: Infinity,
-                            maxBodyLength: Infinity,
-                            validateStatus: s => s >= 200 && s < 400,
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                'Accept': '*/*',
-                                'Accept-Encoding': 'identity'
-                            }
-                        });
-                        const chunks = [];
-                        await new Promise((resolve, reject) => {
-                            audioResponse.data.on('data', c => chunks.push(c));
-                            audioResponse.data.on('end', resolve);
-                            audioResponse.data.on('error', reject);
-                        });
-                        audioBuffer = Buffer.concat(chunks);
-
-                        if (audioBuffer && audioBuffer.length > 0) {
-                            downloadSuccess = true;
-                            break;
-                        }
-                    }
-                } catch (apiErr) {
-                    console.log(`[Song DL] ${apiMethod.name} failed: ${apiErr.message}`);
-                    continue;
+            if (sock && typeof sock.sendMessage === 'function' && chatId) {
+                // 1. Send YouTube Thumbnail Image with track metadata caption
+                if (thumbnailBuffer) {
+                    await sock.sendMessage(chatId, {
+                        image: thumbnailBuffer,
+                        caption: statusCaption
+                    }, { quoted: msg });
+                } else {
+                    await sendReply(statusCaption);
                 }
-            }
 
-            if (!downloadSuccess || !audioBuffer || audioBuffer.length === 0) {
-                throw new Error('All download sources failed. The content may be unavailable or blocked.');
-            }
-
-            // Format Detection
-            const firstBytes = audioBuffer.slice(0, 12);
-            const hexSignature = firstBytes.toString('hex');
-            const asciiSignature = firstBytes.toString('ascii', 4, 8);
-
-            let fileExtension = 'mp3';
-            if (asciiSignature === 'ftyp' || hexSignature.startsWith('000000')) {
-                fileExtension = 'm4a';
-            } else if (audioBuffer.toString('ascii', 0, 3) === 'ID3' || (audioBuffer[0] === 0xFF && (audioBuffer[1] & 0xE0) === 0xE0)) {
-                fileExtension = 'mp3';
-            } else if (audioBuffer.toString('ascii', 0, 4) === 'OggS') {
-                fileExtension = 'ogg';
-            } else if (audioBuffer.toString('ascii', 0, 4) === 'RIFF') {
-                fileExtension = 'wav';
-            }
-
-            // Convert to MP3 if required
-            let finalBuffer = audioBuffer;
-            if (fileExtension !== 'mp3') {
-                try {
-                    finalBuffer = await toAudio(audioBuffer, fileExtension);
-                } catch (convErr) {
-                    finalBuffer = audioBuffer;
-                }
-            }
-
-            // Prepare Payload
-            const fileSizeInBytes = finalBuffer.length;
-            const fileSizeMB = (fileSizeInBytes / (1024 * 1024)).toFixed(1);
-            const sanitizeFilename = (title) => (title || 'song').replace(/[^\w\s-]/g, '').trim();
-            const fileName = `${sanitizeFilename(video.title)}.mp3`;
-
-            if (fileSizeInBytes > MAX_DOCUMENT_SIZE) {
-                throw new Error(`File size (${fileSizeMB} MB) exceeds WhatsApp limit of 2GB.`);
-            }
-
-            // Send payload via safe wrapper
-            if (fileSizeInBytes > MAX_AUDIO_SIZE) {
-                console.log(`[Song DL] File size is ${fileSizeMB}MB (> 16MB). Sending as Document.`);
-                await safeSendMessage(sock, chatId, {
-                    document: finalBuffer,
-                    mimetype: 'audio/mpeg',
-                    fileName: fileName,
-                    caption: `🎵 *${video.title}*\n⏱ Duration: ${video.timestamp}\n📁 File Size: ${fileSizeMB} MB`
-                }, { quoted: msg });
-            } else {
-                console.log(`[Song DL] File size is ${fileSizeMB}MB (<= 16MB). Sending as Audio.`);
-                await safeSendMessage(sock, chatId, {
-                    audio: finalBuffer,
-                    mimetype: 'audio/mpeg',
-                    fileName: fileName,
+                // 2. Send Audio File
+                await sock.sendMessage(chatId, {
+                    audio: audioBuffer,
+                    mimetype: 'audio/mp4',
+                    fileName: `${songDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`,
                     ptt: false
                 }, { quoted: msg });
+
+            } else if (typeof msg?.reply === 'function') {
+                await msg.reply(statusCaption);
+                await msg.reply({
+                    files: [{ attachment: audioBuffer, name: `${songDetails.title}.mp3` }]
+                });
             }
 
-            // Cleanup temp directory
-            try {
-                const tempDir = path.join(__dirname, '../../temp');
-                if (fs.existsSync(tempDir)) {
-                    const files = fs.readdirSync(tempDir);
-                    const now = Date.now();
-                    files.forEach(file => {
-                        const filePath = path.join(tempDir, file);
-                        try {
-                            const stats = fs.statSync(filePath);
-                            if (now - stats.mtimeMs > 10000) {
-                                fs.unlinkSync(filePath);
-                            }
-                        } catch (e) { }
-                    });
-                }
-            } catch (cleanupErr) { }
-
-        } catch (err) {
-            console.error('Song command error:', err);
-
-            let errorMessage = '❌ Failed to download song.';
-            if (err.message && err.message.includes('blocked')) {
-                errorMessage = '❌ Download blocked. The content may be unavailable or restricted.';
-            } else if (err.message && err.message.includes('All download sources failed')) {
-                errorMessage = '❌ All download sources failed to fetch this YouTube link.';
-            } else if (err.message && err.message.includes('exceeds WhatsApp')) {
-                errorMessage = `❌ ${err.message}`;
-            }
-
-            try {
-                await safeSendMessage(sock, chatId, { text: errorMessage }, { quoted: msg });
-            } catch (e) {
-                console.error('Failed to send error response:', e.message);
-            }
+        } catch (error) {
+            console.error('Song command error:', error);
+            await sendReply(`❌ Failed to process song: ${error.message}`);
         }
     }
 };
