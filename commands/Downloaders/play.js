@@ -4,24 +4,101 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
-// Local yt-dlp execution helper
+// Universal downloader: tries local yt-dlp first, then fallback APIs
+async function downloadAudioStream(videoUrl, outputPath) {
+    try {
+        // Attempt local yt-dlp binary download
+        await downloadWithYtdlp(videoUrl, outputPath);
+    } catch (ytdlpErr) {
+        console.warn('[Downloader Engine] Local yt-dlp failed or IP blocked by YouTube. Trying API fallback...', ytdlpErr.message);
+        // Fallback to external API if yt-dlp gets IP-blocked on cloud host
+        await downloadViaApiFallback(videoUrl, outputPath);
+    }
+}
+
+// OS-Aware yt-dlp Runner
 function downloadWithYtdlp(videoUrl, outputPath) {
     return new Promise((resolve, reject) => {
-        // Look for yt-dlp.exe in project root, or fall back to system PATH yt-dlp
-        const ytdlpPath = fs.existsSync(path.join(process.cwd(), 'yt-dlp.exe'))
-            ? `"${path.join(process.cwd(), 'yt-dlp.exe')}"`
-            : 'yt-dlp';
+        let ytdlpCmd = 'yt-dlp';
 
-        // Extract best audio directly
-        const command = `${ytdlpPath} -f "ba/b" -x --audio-format mp3 -o "${outputPath}" --no-playlist --no-warnings "${videoUrl}"`;
+        // Check if running on Windows locally
+        if (process.platform === 'win32') {
+            const localExe = path.join(process.cwd(), 'yt-dlp.exe');
+            if (fs.existsSync(localExe)) {
+                ytdlpCmd = `"${localExe}"`;
+            }
+        }
 
-        exec(command, { timeout: 60000 }, (error, stdout, stderr) => {
+        // Arguments optimized for cloud servers (spoofing headers to evade IP blocks)
+        const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+        const command = `${ytdlpCmd} -f "ba/b" -x --audio-format mp3 --user-agent "${userAgent}" --no-playlist --no-warnings -o "${outputPath}" "${videoUrl}"`;
+
+        exec(command, { timeout: 90000 }, (error, stdout, stderr) => {
             if (error) {
-                console.error('[yt-dlp Error]:', stderr || error.message);
-                return reject(error);
+                return reject(new Error(stderr || error.message));
             }
             resolve(stdout);
         });
+    });
+}
+
+// Fallback API when datacenter IPs are blocked by YouTube
+async function downloadViaApiFallback(videoUrl, outputPath) {
+    const extractVideoId = (url) => {
+        const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+        return match ? match[1] : null;
+    };
+
+    const videoId = extractVideoId(videoUrl);
+    if (!videoId) throw new Error('Invalid video ID for fallback download.');
+
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    };
+
+    // Primary Cloud API Streamer
+    try {
+        const res = await axios.get(`https://api.cobalt.tools/api/json`, {
+            method: 'POST',
+            data: { url: videoUrl, downloadMode: 'audio', audioFormat: 'mp3' },
+            headers,
+            timeout: 20000
+        });
+        if (res.data && res.data.url) {
+            return await streamToFile(res.data.url, outputPath);
+        }
+    } catch (e) {
+        // Continue to second backup
+    }
+
+    // Secondary Rapid Stream API
+    const backupUrl = `https://api.guruapi.tech/api/ytmp3?url=${encodeURIComponent(videoUrl)}`;
+    const res = await axios.get(backupUrl, { headers, timeout: 20000 });
+    const streamUrl = res.data?.url || res.data?.result?.url;
+
+    if (!streamUrl) {
+        throw new Error('All download sources failed.');
+    }
+
+    return await streamToFile(streamUrl, outputPath);
+}
+
+// Binary Stream Pipe
+async function streamToFile(fileUrl, outputPath) {
+    const response = await axios({
+        url: fileUrl,
+        method: 'GET',
+        responseType: 'stream',
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        timeout: 30000
+    });
+
+    const writer = fs.createWriteStream(outputPath);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
     });
 }
 
@@ -136,11 +213,11 @@ module.exports = {
             const tempFilename = `temp_${Date.now()}`;
             const tempPath = path.join(__dirname, `${tempFilename}.mp3`);
 
-            // Execute local yt-dlp binary directly
-            await downloadWithYtdlp(videoUrl, tempPath);
+            // Execute cross-platform download strategy
+            await downloadAudioStream(videoUrl, tempPath);
 
             if (!fs.existsSync(tempPath)) {
-                throw new Error('Failed to create local audio file via yt-dlp.');
+                throw new Error('Failed to generate local audio file.');
             }
 
             const audioBuffer = fs.readFileSync(tempPath);
