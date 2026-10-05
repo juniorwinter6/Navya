@@ -2,43 +2,27 @@ const yts = require('yt-search');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
 
-// Primary API Downloader using Cobalt API (No yt-dlp or cookies needed)
-async function downloadAudioViaApi(videoUrl, outputPath) {
-    const apiResponse = await axios.post(
-        'https://api.cobalt.tools/api/json',
-        {
-            url: videoUrl,
-            downloadMode: 'audio',
-            audioFormat: 'mp3'
-        },
-        {
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            timeout: 30000
-        }
-    );
+// Local yt-dlp execution helper
+function downloadWithYtdlp(videoUrl, outputPath) {
+    return new Promise((resolve, reject) => {
+        // Look for yt-dlp.exe in project root, or fall back to system PATH yt-dlp
+        const ytdlpPath = fs.existsSync(path.join(process.cwd(), 'yt-dlp.exe'))
+            ? `"${path.join(process.cwd(), 'yt-dlp.exe')}"`
+            : 'yt-dlp';
 
-    if (apiResponse.data && apiResponse.data.url) {
-        const streamResponse = await axios({
-            url: apiResponse.data.url,
-            method: 'GET',
-            responseType: 'stream'
+        // Extract best audio directly
+        const command = `${ytdlpPath} -f "ba/b" -x --audio-format mp3 -o "${outputPath}" --no-playlist --no-warnings "${videoUrl}"`;
+
+        exec(command, { timeout: 60000 }, (error, stdout, stderr) => {
+            if (error) {
+                console.error('[yt-dlp Error]:', stderr || error.message);
+                return reject(error);
+            }
+            resolve(stdout);
         });
-
-        const writer = fs.createWriteStream(outputPath);
-        streamResponse.data.pipe(writer);
-
-        return new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-        });
-    } else {
-        throw new Error('Audio download API service did not return a valid stream.');
-    }
+    });
 }
 
 module.exports = {
@@ -51,7 +35,6 @@ module.exports = {
         let msg = null;
         let args = [];
 
-        // Parameter matching for Baileys command structure
         if (arg1?.sendMessage) {
             sock = arg1;
             msg = arg2;
@@ -77,7 +60,6 @@ module.exports = {
             console.log(`[Play Cmd Output]: ${text}`);
         };
 
-        // Parse search query
         let query = '';
         if (Array.isArray(args) && args.length > 0) {
             query = args.join(' ').trim();
@@ -112,7 +94,6 @@ module.exports = {
         try {
             await sendReply(`🔍 Searching for: *${query}*`);
 
-            // Helper to extract YouTube Video ID from any standard link
             const extractVideoId = (url) => {
                 const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
                 return match ? match[1] : null;
@@ -121,7 +102,6 @@ module.exports = {
             const videoId = extractVideoId(query);
 
             if (videoId) {
-                // If query is a direct YouTube link, fetch metadata via videoId
                 const videoData = await yts({ videoId: videoId });
                 if (videoData) {
                     videoUrl = videoData.url;
@@ -133,7 +113,6 @@ module.exports = {
                     };
                 }
             } else {
-                // Perform text search if query is a song title
                 const searchResults = await yts(query);
                 if (!searchResults || !searchResults.videos.length) {
                     return await sendReply('❌ No results found for your search.');
@@ -157,19 +136,16 @@ module.exports = {
             const tempFilename = `temp_${Date.now()}`;
             const tempPath = path.join(__dirname, `${tempFilename}.mp3`);
 
-            // Download audio via API (bypasses yt-dlp & cloud blocks)
-            await downloadAudioViaApi(videoUrl, tempPath);
+            // Execute local yt-dlp binary directly
+            await downloadWithYtdlp(videoUrl, tempPath);
 
             if (!fs.existsSync(tempPath)) {
-                throw new Error('Failed to create audio file.');
+                throw new Error('Failed to create local audio file via yt-dlp.');
             }
 
             const audioBuffer = fs.readFileSync(tempPath);
-
-            // Clean up temp audio file
             fs.unlinkSync(tempPath);
 
-            // Download YouTube thumbnail image into a buffer
             let thumbnailBuffer = null;
             if (songDetails.thumbnail) {
                 try {
@@ -183,12 +159,10 @@ module.exports = {
                 }
             }
 
-            // Dispatch Thumbnail Image & Audio
             const statusCaption = `🎶 *Sending audio:* "${formattedTitle}"${songDetails.timestamp ? ` [${songDetails.timestamp}]` : ''}`;
             const sanitizeFilename = `${songDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
 
             if (sock && typeof sock.sendMessage === 'function' && chatId) {
-                // 1. Send YouTube Thumbnail Image with track metadata caption
                 if (thumbnailBuffer) {
                     await sock.sendMessage(chatId, {
                         image: thumbnailBuffer,
@@ -198,7 +172,6 @@ module.exports = {
                     await sendReply(statusCaption);
                 }
 
-                // 2. Send Audio File
                 await sock.sendMessage(chatId, {
                     audio: audioBuffer,
                     mimetype: 'audio/mp4',
